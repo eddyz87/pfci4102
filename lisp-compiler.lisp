@@ -79,7 +79,7 @@
      (push-instruction `(ld ,@(find-variable x bindings))))
 
     ((guard x (numberp x))
-     (push-instruction `(ld ,x)))
+     (push-instruction `(ldc ,x)))
 
     )
   *current-program*)
