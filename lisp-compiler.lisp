@@ -10,7 +10,7 @@
        (loop for j from 0
             for var in env
             when (eq var name)
-            do (return-from find-variable (cons i j))))
+            do (return-from find-variable (list i j))))
   (error "Can't find variable ~A" name))
 
 ;; TODO: def-test
@@ -36,6 +36,9 @@
 (defun push-instruction (instr)
   (push instr *current-program*))
 
+;; PC> (compile-lisp '((lambda (a) (+ a a)) 21))
+;; ((LD 21) (LDF #:|label1092|) (AP 1) #:|label1092| (LD 0 0) (LD 0 0) (ADD))
+
 (defun lms-compile (term bindings)
   "bindings - list of all environments"
   (optima:match term
@@ -45,9 +48,13 @@
             (else-label (new-block (lms-compile else bindings))))
        (push-instruction `(sel ,then-label ,else-label))))
     
-    ((list* 'lambda (list* params) body)
+    ((list* 'lambda params body)
      (let ((label (new-block (lms-compile `(progn ,@body) (cons params bindings)))))
        (push-instruction `(ldf ,label))))
+    
+    ((list* 'progn body)
+     (dolist (b body)
+       (lms-compile b bindings)))
     
     ((list* 'rap function params)
      (dolist (p params)
@@ -59,7 +66,23 @@
     ((list* function params)
      (dolist (p params)
        (lms-compile p bindings))
-     (lms-compile function bindings)
-     (push-instruction `(ap ,(length params))))
+     (case function
+       (+ (push-instruction `(add)))
+       (otherwise 
+        (lms-compile function bindings)
+        (push-instruction `(ap ,(length params))))))
+
+    ((guard x (symbolp x))
+     (push-instruction `(ld ,@(find-variable x bindings))))
+
+    ((guard x (numberp x))
+     (push-instruction `(ld ,x)))
 
     ))
+
+(defun compile-lisp (term)
+  (let ((*current-program* nil))
+    (lms-compile term '((initial-state ghost-programs)))
+    (append
+     (reverse *current-program*)
+     (mapcan #'copy-list *current-blocks*))))

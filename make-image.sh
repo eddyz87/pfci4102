@@ -1,2 +1,2 @@
 #!/bin/bash
-(cd $(dirname "$0"); rlwrap sbcl --load image.lisp)
+(cd $(dirname "$0"); sbcl --load image.lisp)

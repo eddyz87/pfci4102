@@ -1,3 +1,3 @@
 (defpackage pacman
   (:nicknames :pc)
-  (:use common-lisp))
+  (:use common-lisp optima))
