@@ -17,6 +17,13 @@
 (defvar *current-program* nil)
 (defvar *current-blocks* nil)
 
+(defvar *macro-forms* (make-hash-table :test #'eq))
+
+(defmacro define-client-macro (name params &body body)
+  `(progn
+    (defmacro ,name ,params ,@body)
+    (setf (gethash ',name *macro-forms*) t)))
+
 (defmacro new-block (return-instruction &body body)
   (let ((label (gensym "label-name")))
     `(let ((*current-program* nil)
@@ -55,6 +62,9 @@
      (lms-compile function bindings)
      (push-instruction `(dum ,(length params)))
      (push-instruction `(rap ,(length params))))
+
+    ((guard (list* function _) (gethash function *macro-forms*))
+     (lms-compile (macroexpand term) bindings))
     
     ((list* function params)
      (dolist (p params)
@@ -71,9 +81,10 @@
        (cdr (push-instruction `(cdr)))
        (cons (push-instruction `(cons)))
        (atom (push-instruction `(atom)))
-       (otherwise 
+       (otherwise
         (lms-compile function bindings)
-        (push-instruction `(ap ,(length params))))))
+        (push-instruction `(ap ,(length params)))
+        )))
 
     ((guard x (symbolp x))
      (push-instruction `(ld ,@(find-variable x bindings))))
@@ -92,3 +103,7 @@
     (append
      (reverse *current-program*)
      (mapcan #'copy-list *current-blocks*))))
+
+(define-client-macro test-macro (a b)
+  (format t "bzzzzz~%")
+  `(+ ,a ,b))
