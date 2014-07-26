@@ -14,8 +14,8 @@
         (inner-lists-to-bin-tries (cdr lsts) 
                                   (cons (list-to-bin-trie current-lst +wall+)
                                         acc)))
-    (reverse acc)))
-   
+      (reverse acc)))
+
 (defun get-trie-for-map (map)
   (list-to-bin-trie (inner-lists-to-bin-tries map nil) +wall+))
 
@@ -30,9 +30,9 @@
     (if get-lst
         (cons (car get-lst)
               (cons (cdr get-lst) put-lst))
-      (if put-lst
-          (queue-get (cons (reverse put-lst) nil))
-        (cons nil queue)))))
+        (if put-lst
+            (queue-get (cons (reverse put-lst) nil))
+            (cons nil queue)))))
 
 (defun queue-put (new-elem queue)
   (let ((get-lst (car queue))
@@ -42,9 +42,9 @@
 (defun queue-empty? (queue)
   (if (car queue)
       0
-    (if (cdr queue)
-        0
-      1)))
+      (if (cdr queue)
+          0
+          1)))
 ;; =========================================
 
 
