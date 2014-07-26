@@ -1,6 +1,5 @@
 (in-package :pc)
 
-
 (defun max-2-power (num)
   (labels ((%max-pow (acc)
              (if (>= acc num)
@@ -54,13 +53,3 @@
         (cdr trie)))
 
 
-;; (if (and a b)
-;;      body1
-;;      body2)
-
-;; (labels ((%l () body2))
-;;   (if a
-;;       (if b
-;;           body1
-;;           (%l))
-;;       (%l)))

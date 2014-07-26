@@ -90,11 +90,14 @@
      (dolist (b body)
        (lms-compile b bindings)))
     
-    ((list* 'rap function params)
+    ((list* 'rap (list* 'lambda vars body) params)
      (push-instruction `(dum ,(length params)))
      (dolist (p params)
-       (lms-compile p bindings))
-     (lms-compile function bindings)
+       (lms-compile p (cons vars bindings)))
+     (let ((label (new-block 'rtn (lms-compile
+                                   `(progn ,@body)
+                                   (cons vars bindings)))))
+       (push-instruction `(ldf ,label)))
      (push-instruction `(rap ,(length params))))
 
     ((guard (list* function _) (gethash function *macro-forms*))
@@ -163,34 +166,17 @@
             ((eq (first form)
                  'define-client-macro)
              (setf (gethash (second form) *macro-forms*)
-                   (eval `(lambda ,(cdr form)))))
+                   (eval `(lambda ,@(cddr form)))))
             ((eq (first form)
                  'in-package)
              nil)))
     (compile-lisp `(labels ,bodies ,@main-body) main-params)))
 
-(define-client-macro labels (forms &rest body)
-  (let ((param-names (mapcar #'first forms))
-        (param-forms (mapcar (lambda (x) (cons 'lambda x))
-                             (mapcar #'cdr forms))))
-    `(rap (lambda ,param-names ,@body) ,@param-forms)))
+(defun compile-lisp-files (&rest files)
+  (compile-lisp-top (mapcan #'copy-list (mapcar #'read-file-forms files))))
 
-(define-client-macro let (forms &rest body)
-  (let ((param-names (mapcar #'first forms))
-        (param-forms (mapcar (lambda (x) (cons 'lambda x))
-                             (mapcar #'cdr forms))))
-    `((lambda ,param-names ,@body) ,@param-forms)))
-
-(define-client-macro let* (forms &rest body)
-  (if (null (cdr forms))
-      `(let ,forms ,@body)
-      `(let (,(car forms)) (let* ,(cdr forms) ,@body))))
-
-(define-client-macro null (val)
-  `(= ,val 0))
-
-(define-client-macro funcall (func &rest args)
-  `(,func ,@args))
-
-(define-client-macro function (func)
-  func)
+(defun read-file-forms (file-name)
+  (with-open-file (stream file-name :direction :input)
+    (loop for line = (read stream nil nil) then (read stream nil nil)
+         while line
+         collect line)))
