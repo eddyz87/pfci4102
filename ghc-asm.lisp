@@ -18,6 +18,8 @@
     (or= 'or)
     (xor= 'xor)
     (:= 'mov)
+    (++ 'inc)
+    (-- 'dec)
     (otherwise nil)))
 
 (defvar *current-instructions* nil)
@@ -37,23 +39,29 @@
         (if instr
             (progn
               (when (null available-registers)
-                (error "Cannont compile exprs"))
-              (let* ((tval (ghc-compile-expr (second expr) target available-registers
-                                             var-access-exprs var-address-exprs))
-                     (reg1 (ghc-compile-expr (third expr) (car available-registers) (cdr available-registers)
-                                             var-access-exprs var-address-exprs)))
-                (if target
-                    (progn
-                      (when (and (not (eq tval target)))
-                        (push `(mov ,target ,tval)
-                              *current-instructions*))
-                      (push `(,instr ,target ,reg1)
-                            *current-instructions*)
-                      target)
-                    (progn
-                      (push `(,instr ,tval ,reg1)
-                            *current-instructions*)
-                      tval))))
+                (error "Cannot compile exprs"))
+              (case (length (cdr expr))
+                (2 (let* ((tval (ghc-compile-expr (second expr) target available-registers
+                                                  var-access-exprs var-address-exprs))
+                          (reg1 (ghc-compile-expr (third expr) (car available-registers) (cdr available-registers)
+                                                  var-access-exprs var-address-exprs)))
+                     (if target
+                         (progn
+                           (when (and (not (eq tval target)))
+                             (push `(mov ,target ,tval)
+                                   *current-instructions*))
+                           (push `(,instr ,target ,reg1)
+                                 *current-instructions*)
+                           target)
+                         (progn
+                           (push `(,instr ,tval ,reg1)
+                                 *current-instructions*)
+                           tval))))
+                (1 (let* ((tval (ghc-compile-expr (second expr) (car available-registers) (cdr available-registers)
+                                                  var-access-exprs var-address-exprs)))
+                     (push `(,instr ,tval)
+                           *current-instructions*)
+                     tval))))
             (cond ((eq (first expr) 'address)
                    (gethash (second expr) var-address-exprs))
                   ((eq (first expr) 'val)
