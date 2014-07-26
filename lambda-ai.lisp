@@ -19,3 +19,24 @@
 (defun get-trie-for-map (map)
   (list-to-bin-trie (inner-lists-to-bin-tries map nil) +wall+))
 
+;; =======================================================
+;; QUEUE IMPLEMENTATIN
+(defun make-queue ()
+  (cons nil nil))
+
+(defun queue-get (queue)
+  (let ((get-lst (car queue))
+        (put-lst (cdr queue)))
+    (if get-lst
+        (cons (car get-lst)
+              (cons (cdr get-lst) put-lst))
+      (if put-lst
+          (queue-get (cons (reverse put-lst) nil))
+        (cons nil queue)))))
+
+(defun queue-put (new-elem queue)
+  (let ((get-lst (car queue))
+        (put-lst (cdr queue)))
+    (cons get-lst (cons new-elem put-lst))))
+;; =========================================
+
