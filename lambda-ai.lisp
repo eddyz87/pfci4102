@@ -78,7 +78,12 @@
 (defun get-map-value (map coord)
   (let ((x (car coord))
         (y (cdr coord)))
-    (bin-trie-nth (bin-trie-nth x) y)))
+    (bin-trie-nth (bin-trie-nth map y) x)))
+
+(defun put-map-value (map coord val)
+  (let ((x (car coord))
+        (y (cdr coord)))
+    (bin-trie-nth-update map y (bin-trie-nth-update map x val))))
 
 (defun wave (map front)
   (labels ((%decode-move (prev-coord coord)
