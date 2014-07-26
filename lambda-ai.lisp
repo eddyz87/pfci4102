@@ -46,6 +46,13 @@
   (list-to-bin-trie (inner-lists-to-bin-tries map nil)
                     (list-to-bin-trie (cons +wall+ nil) +wall+)))
 
+(define-client-macro tuple (&rest args)
+  (let ((result (reduce (lambda (x acc)
+                          (cons x acc))
+                        args
+                        :from-end t)))
+    `(quote ,result)))
+
 ;; =======================================================
 ;; QUEUE IMPLEMENTATIN
 (defun make-queue ()
