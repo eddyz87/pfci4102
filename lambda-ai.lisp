@@ -162,7 +162,7 @@
            (map (get-trie-for-map (world-state-map world-state)))
            (map (put-map-value map lambda-man-coords
                                (cons +lambda-man+ +lambda-man+))))
-      (wave map (queue-put lambda-man-coords (make-queue))))))
+      (cons nil (wave map (queue-put lambda-man-coords (make-queue)))))))
 
 (defun wave-main (init-state ghost-programs)
   #-secd(declare (ignore init-state ghost-programs))
