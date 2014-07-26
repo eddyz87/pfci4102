@@ -4,5 +4,5 @@
 		 (:file "labels" :depends-on ("package"))
 		 (:file "dump"   :depends-on ("package"))
 		 (:file "lisp-compiler" :depends-on ("package" "labels" "dump"))
-                 (:file "ghc-asm")
-                 ))
+                 (:file "c-compiler" :depends-on ("package" "ghc-asm"))
+                 (:file "ghc-asm" :depends-on ("package"))))
