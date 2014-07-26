@@ -24,6 +24,13 @@
     (defmacro ,name ,params ,@body)
     (setf (gethash ',name *macro-forms*) t)))
 
+(defvar *client-constants* (make-hash-table :test #'eq))
+
+(defmacro define-client-constant (name value)
+  `(progn
+     (defconstant ,name ,value)
+     (setf (gethash ,name *client-constants*) ,value)))
+
 (defmacro new-block (return-instruction &body body)
   (let ((label (gensym "label-name")))
     `(let ((*current-program* nil)
@@ -107,3 +114,4 @@
 (define-client-macro test-macro (a b)
   (format t "bzzzzz~%")
   `(+ ,a ,b))
+

@@ -1,15 +1,12 @@
 (in-package :pc)
 
-(defconstant +wall+ 0)
-(defconstant +empty+ 1)
-(defconstant +pill+ 2)
-(defconstant +power-pill+ 3)
-(defconstant +fruit+ 4)
-(defconstant +lm-start-pos+ 5)
-(defconstant +gh-start-pos+ 6)
-
-(defun get-trie-for-map (map)
-  (list-to-bin-trie (inner-lists-to-bin-tries map nil) +wall+))
+(define-client-constant +wall+ 0)
+(define-client-constant +empty+ 1)
+(define-client-constant +pill+ 2)
+(define-client-constant +power-pill+ 3)
+(define-client-constant +fruit+ 4)
+(define-client-constant +lm-start-pos+ 5)
+(define-client-constant +gh-start-pos+ 6)
 
 (defun inner-lists-to-bin-tries (lsts acc)
   (if lsts
@@ -19,3 +16,6 @@
                                         acc)))
     (reverse acc)))
    
+(defun get-trie-for-map (map)
+  (list-to-bin-trie (inner-lists-to-bin-tries map nil) +wall+))
+
