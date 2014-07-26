@@ -23,12 +23,12 @@
   `(progn
     (setf (gethash ',name *macro-forms*) (lambda ,params ,@body))))
 
-(defvar *constants* (make-hash-table :test #'eq))
+(defvar *client-constants* (make-hash-table :test #'eq))
 
 (defmacro define-client-constant (name value)
   `(progn
      (defconstant ,name ,value)
-     (setf (gethash ,name *constants*) ,value)))
+     (setf (gethash ,name *client-constants*) ,value)))
 
 (defmacro new-block (return-instruction &body body)
   (let ((label (gensym "label-name")))
@@ -98,7 +98,7 @@
      (push-instruction `(rap ,(length params))))
 
     ((guard (list* function _) (gethash function *macro-forms*))
-     (lms-compile (apply (gethash function *macro-forms*) (cdr term)) bindings))
+     (lms-compile (client-macroexpand-1 term) bindings))
     
     ((list* function params)
      (dolist (p params)
@@ -123,7 +123,7 @@
         )))
 
     ((guard x (symbolp x))
-     (let ((const (gethash x *constants*)))
+     (let ((const (gethash x *client-constants*)))
        (push-instruction (if const
                              `(ld ,const)
                              `(ld ,@(find-variable x bindings))))))
