@@ -172,8 +172,26 @@
              nil)))
     (compile-lisp `(labels ,bodies ,@main-body) main-params)))
 
+(defun check-top-funcs-params (forms)
+  (let ((num-pars (make-hash-table :test #'eq)))
+    (dolist (form forms)
+      (when (eq (car form)
+                'defun)
+        (setf (gethash (second form) num-pars)
+              (length (third form)))))
+    (labels ((%traverse (lst)
+               (when (listp lst)
+                 (let ((num (gethash (car lst) num-pars)))
+                   (when (and num (not (= num (length (cdr lst)))))
+                     (error "Number of parameters mismatch: call: ~A, required number of parameters: ~A"
+                            lst
+                            num)))
+                 (mapc #'%traverse lst))))
+      (%traverse forms)))
+  forms)
+
 (defun compile-lisp-files (main-func &rest files)
-  (compile-lisp-top main-func (mapcan #'copy-list (mapcar #'read-file-forms files))))
+  (compile-lisp-top main-func (check-top-funcs-params (mapcan #'copy-list (mapcar #'read-file-forms files)))))
 
 (defun read-file-forms (file-name)
   (let ((*features* (cons :secd *features*)))
