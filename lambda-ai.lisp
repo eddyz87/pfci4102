@@ -16,6 +16,8 @@
 (define-client-constant +lambda-man+ 100)
 (define-client-constant +no-move+ 101)
 
+(define-client-constant +ghost-stay-away-distance+ 3)
+
 (defun free? (val)
   (if (= val +pill+)
       1
@@ -155,14 +157,67 @@
 (defun world-state-lambda-man-status (ws)
   (car (cdr ws)))
 
+(defun world-state-ghost-list (ws)
+  (car (cdr (cdr ws))))
+
 (defun world-state-lambda-man-coords (ws)
   (car (cdr (world-state-lambda-man-status ws))))
+
+(defun mark-way (map element coord direction length)
+  (if (= 0 length)
+      map
+      (let* ((next-coord (case direction
+                           (+up+      (up-coord coord))
+                           (+down+    (down-coord coord))
+                           (+left+    (left-coord coord))
+                           (otherwise (right-coord coord))))
+             (next-value (get-map-value map next-coord)))
+        (labels ((%next (map direction)
+                   (mark-way (put-map-value map next-coord element)
+                             element next-coord direction (- length 1))))
+          (if (= 1 (free? next-value))
+              (%next map direction)
+              (case direction
+                (+up+      (%next (%next (%next map +left+) +right+) +down+))
+                (+down+    (%next (%next (%next map +left+) +right+) +up+))
+                (+left+    (%next (%next (%next map +up+)   +right+) +down+))
+                (otherwise (%next (%next (%next map +left+) +up+)    +down+))))))))
+
+(define-client-macro define-tuple (name &rest fields)
+  (labels ((%gen (fields)
+             (when fields
+               (let* ((field (car fields))
+                      (rest-fields (cdr fields))
+                      (fname (intern (concatenate 'string (symbol-name name) "-" (symbol-name field)))))
+                 (cons 
+                  `(defun ,fname (x)
+                     (car ,(reduce (lambda (acc f) (declare (ignore f)) `(cdr ,acc))
+                                   rest-fields
+                                   :initial-value 'x)))
+                  (%gen rest-fields))))))
+    `(progn
+       ,@(%gen fields))))
+
+(define-tuple ghost-status vitality coord direction)
+
+(defun mark-ghost-ways (map ghosts)
+  (labels ((%mark (map ghosts)
+             (if (null ghosts)
+                 map
+                 (let ((g (car ghosts)))
+                   (%mark (mark-way map +wall+
+                                    (ghost-status-coord g)
+                                    (ghost-status-direction g)
+                                    +ghost-stay-away-distance+)
+                          (cdr ghosts))))))
+    (%mark map ghosts)))
 
 (defun make-wave-step ()
   (lambda (ai-state world-state)
     #-secd(declare (ignore ai-state))
     (let* ((lambda-man-coords (world-state-lambda-man-coords world-state))
            (map (get-trie-for-map (car world-state)))
+           (map (mark-ghost-ways map (world-state-ghost-list world-state)))
            (map (put-map-value map lambda-man-coords
                                (cons +lambda-man+ +lambda-man+))))
       ;;(dbug lambda-man-coords)
@@ -173,7 +228,8 @@
   #-secd(declare (ignore init-state ghost-programs))
   (cons nil (make-wave-step)))
 
-#-secd(defun test-wave ()
+#-secd
+(defun test-wave ()
   (funcall (make-wave-step)
            nil ;; ai state
            (list '((0 0 0 0 0)
@@ -181,22 +237,25 @@
                    (0 0 1 0 0)
                    (0 2 1 1 0)
                    (0 0 0 0 0))
-                 (cons 2 2))))
+                 (cons 2 2)
+                 (list (tuple 0 (cons 3 3) +left+)))))
 
-;; LIGHTING MAN
-(defun lightning-main (init-state ghost-programs)
-  (cons nil
-        (lambda (ai-state world-state)
-          (let* ((map (car world-state))
-                 (lm-status (car (cdr world-state)))
-                 (lm-coord (car (cdr lm-status)))
-                 (x (car lm-coord))
-                 (y (cdr lm-coord))
-                 (parsed-map (get-trie-for-map map)))
-            (if (free? (bin-trie-nth (bin-trie-nth parsed-map (- y 1)) x))
-                (cons nil +up+)
-              (if (free? (bin-trie-nth (bin-trie-nth parsed-map y) (+ x 1)))
-                  (cons nil +right+)
-                (if (free? (bin-trie-nth (bin-trie-nth parsed-map (+ y 1)) x))
-                    (cons nil +down+)
-                  (cons nil +left+))))))))
+;; ;; LIGHTING MAN
+;; (defun lightning-main (init-state ghost-programs)
+;;   #-secd(declare (ignore init-state ghost-programs))
+;;   (cons nil
+;;         (lambda (ai-state world-state)
+;;           #-secd(declare (ignore ai-state))
+;;           (let* ((map (car world-state))
+;;                  (lm-status (car (cdr world-state)))
+;;                  (lm-coord (car (cdr lm-status)))
+;;                  (x (car lm-coord))
+;;                  (y (cdr lm-coord))
+;;                  (parsed-map (get-trie-for-map map)))
+;;             (if (free? (bin-trie-nth (bin-trie-nth parsed-map (- y 1)) x))
+;;                 (cons nil +up+)
+;;               (if (free? (bin-trie-nth (bin-trie-nth parsed-map y) (+ x 1)))
+;;                   (cons nil +right+)
+;;                 (if (free? (bin-trie-nth (bin-trie-nth parsed-map (+ y 1)) x))
+;;                     (cons nil +down+)
+;;                   (cons nil +left+))))))))

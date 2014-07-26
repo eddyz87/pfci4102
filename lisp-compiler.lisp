@@ -21,7 +21,8 @@
 
 (defmacro define-client-macro (name params &body body)
   `(progn
-    (setf (gethash ',name *macro-forms*) (lambda ,params ,@body))))
+    (setf (gethash ',name *macro-forms*) (lambda ,params ,@body))
+    (defmacro ,name ,params ,@body)))
 
 (defvar *client-constants* (make-hash-table :test #'eq))
 
