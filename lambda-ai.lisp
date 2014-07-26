@@ -51,13 +51,6 @@
                         :from-end t)))
     `(quote ,result)))
 
-(defun generate-binding (
-
-(define-client-macro untuple (bindings &body body)
-  (let ((bindings-forms (mapcar #'generate-binding bindings)))
-    `(let ,bindings-forms ,@body)))
-
-
 ;; =======================================================
 ;; QUEUE IMPLEMENTATIN
 (defun make-queue ()
@@ -85,8 +78,6 @@
         0)
     0))
 ;; =========================================
-
-<<<<<<< Updated upstream
 
 (defun get-map-value (map coord)
   (let ((x (car coord))
