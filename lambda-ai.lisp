@@ -173,3 +173,21 @@
                    (0 2 1 1 0)
                    (0 0 0 0 0))
                  (cons 2 2))))
+
+;; LIGHTING MAN
+(defun main (init-state ghost-programs)
+  (cons nil
+        (lambda (ai-state world-state)
+          (let ((map (car world-state))
+                (lm-status (car (cdr world-state))))
+            (let ((lm-coord (car (cdr lm-status))))
+              (let ((x (car lm-coord))
+                    (y (cdr lm-coord))
+                    (parsed-map (get-trie-for-map map)))
+                (if (free? (bin-trie-nth (bin-trie-nth parsed-map (- y 1)) x))
+                    (cons nil +up+)
+                  (if (free? (bin-trie-nth (bin-trie-nth parsed-map y) (+ x 1)))
+                      (cons nil +right+)
+                    (if (free? (bin-trie-nth (bin-trie-nth parsed-map (+ y 1)) x))
+                        (cons nil +down+)
+                      (cons nil +left+))))))))))
