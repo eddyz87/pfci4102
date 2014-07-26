@@ -55,7 +55,7 @@
                             *current-instructions*)
                       tval))))
             (cond ((eq (first expr) 'address)
-                   (car (gethash (second expr) var-address-exprs)))
+                   (gethash (second expr) var-address-exprs))
                   ((eq (first expr) 'val)
                    (let ((val-inner (ghc-compile-expr (second expr) target available-registers
                                                       var-access-exprs var-address-exprs)))
