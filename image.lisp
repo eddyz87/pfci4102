@@ -1,5 +1,5 @@
 (load #P"~/quicklisp/setup.lisp")
-(declaim (optimize debug))
+(proclaim '(optimize (debug 3) (safety 3)))
 (require 'asdf)
 (in-package :cl-user)
 (load "pacman.asd")

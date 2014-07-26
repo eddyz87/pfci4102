@@ -42,7 +42,7 @@
 
 (defun get-trie-for-map (map)
   (list-to-bin-trie (inner-lists-to-bin-tries map nil)
-                    (list-to-bin-trie (list +wall+) +wall+)))
+                    (list-to-bin-trie (cons +wall+ nil) +wall+)))
 
 ;; =======================================================
 ;; QUEUE IMPLEMENTATIN
@@ -86,18 +86,18 @@
 
 (defun up-coord (c)
   (cons (car c)
-        (1- (cdr c))))
+        (- (cdr c) 1)))
 
 (defun down-coord (c)
   (cons (car c)
-        (1+ (cdr c))))
+        (+ (cdr c) 1)))
 
 (defun left-coord (c)
-  (cons (1- (car c))
+  (cons (- (car c) 1)
         (cdr c)))
 
 (defun right-coord (c)
-  (cons (1+ (car c))
+  (cons (+ (car c) 1)
         (cdr c)))
 
 (defun wave (map front)
@@ -150,21 +150,25 @@
                     #'wave)))))))))))
 
 (defun world-state-map (ws)
-  (first ws))
+  (car ws))
 
 (defun world-state-lambda-man (ws)
-  (second ws))
+  (car (cdr ws)))
 
 (defun make-wave-step ()
   (lambda (ai-state world-state)
-    (declare (ignore ai-state))
+    #-secd(declare (ignore ai-state))
     (let* ((lambda-man-coords (world-state-lambda-man world-state))
            (map (get-trie-for-map (world-state-map world-state)))
            (map (put-map-value map lambda-man-coords
                                (cons +lambda-man+ +lambda-man+))))
       (wave map (queue-put lambda-man-coords (make-queue))))))
 
-(defun test-wave ()
+(defun wave-main (init-state ghost-programs)
+  #-secd(declare (ignore init-state ghost-programs))
+  (cons nil (make-wave-step)))
+
+#-secd(defun test-wave ()
   (funcall (make-wave-step)
            nil ;; ai state
            (list '((0 0 0 0 0)
@@ -175,7 +179,7 @@
                  (cons 2 2))))
 
 ;; LIGHTING MAN
-(defun main (init-state ghost-programs)
+(defun lightning-main (init-state ghost-programs)
   (cons nil
         (lambda (ai-state world-state)
           (let ((map (car world-state))

@@ -53,12 +53,12 @@
         (cdr trie)))
 
 
-(defun bin-trie-to-list (trie)
+#-secd(defun bin-trie-to-list (trie)
   (bin-trie-to-list-inner
    (car trie)
    (cdr trie)))
 
-(defun bin-trie-to-list-inner (trie size)
+#-secd(defun bin-trie-to-list-inner (trie size)
   (if (= size 1)
       (cons trie nil)
       (let ((half-size (/ size 2)))

@@ -146,7 +146,7 @@
      (reverse *current-program*)
      (mapcan #'copy-list *current-blocks*))))
 
-(defun compile-lisp-top (forms)
+(defun compile-lisp-top (main-func forms)
   (let* ((main-params nil)
          (main-body nil)
          (bodies nil))
@@ -154,7 +154,7 @@
       (cond ((eq (first form)
                  'defun)
              (if (eq (second form)
-                     'main)
+                     main-func)
                  (progn
                    (setf main-params (third form))
                    (setf main-body (cdddr form)))
@@ -172,11 +172,16 @@
              nil)))
     (compile-lisp `(labels ,bodies ,@main-body) main-params)))
 
-(defun compile-lisp-files (&rest files)
-  (compile-lisp-top (mapcan #'copy-list (mapcar #'read-file-forms files))))
+(defun compile-lisp-files (main-func &rest files)
+  (compile-lisp-top main-func (mapcan #'copy-list (mapcar #'read-file-forms files))))
 
 (defun read-file-forms (file-name)
-  (with-open-file (stream file-name :direction :input)
-    (loop for line = (read stream nil nil) then (read stream nil nil)
+  (let ((*features* (cons :secd *features*)))
+    (with-open-file (stream file-name :direction :input)
+      (loop for line = (read stream nil nil) then (read stream nil nil)
          while line
-         collect line)))
+         collect line))))
+
+(defun compile-program (main-func &rest files)
+  (dump (transform-labels (apply #'compile-lisp-files main-func files))
+        t))
