@@ -65,3 +65,16 @@
                            (push `(mov ,target ,val-inner)
                                  *current-instructions*)
                            target)))))))))
+
+(defun ghc-asm-dump (body stream)
+  (labels ((%param-to-string (par)
+             (cond ((symbolp par)
+                    (string-downcase (symbol-name par)))
+                   ((integerp par)
+                    (format nil "~A" par))
+                   ((listp par)
+                    (format nil "[~A]" (%param-to-string (first par)))))))
+    (dolist (instr body)
+      (format stream "~A ~{~A~^,~}~%"
+              (string-downcase (symbol-name (car instr)))
+              (mapcar #'%param-to-string (cdr instr))))))
