@@ -128,7 +128,7 @@
     ((guard x (symbolp x))
      (let ((const (gethash x *client-constants*)))
        (push-instruction (if const
-                             `(ld ,const)
+                             `(ldc ,const)
                              `(ld ,@(find-variable x bindings))))))
 
     ((guard x (numberp x))
