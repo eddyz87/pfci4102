@@ -18,6 +18,32 @@
 
 (define-client-constant +ghost-stay-away-distance+ 3)
 
+(define-client-macro define-tuple (name &rest fields)
+  (labels ((%gen (fields top-fields)
+             (when fields
+               (let* ((field (car fields))
+                      (rest-fields (cdr fields))
+                      (fname (intern (concatenate 'string (symbol-name name) "-" (symbol-name field))))
+                      (cdrs (reduce (lambda (acc f) (declare (ignore f)) `(cdr ,acc))
+                                   top-fields
+                                   :initial-value 'x)))
+                 (cons
+                  (if rest-fields
+                      `(defun ,fname (x) (car ,cdrs))
+                      `(defun ,fname (x) ,cdrs))
+                  (%gen rest-fields (cons field top-fields)))))))
+    `(progn
+       ,@(%gen fields nil))))
+
+(define-tuple world-state
+    map lambda-man ghosts fruit)
+
+(define-tuple lambda-man
+    vitality coord direction lives score)
+
+(define-tuple ghost
+    vitality coord direction)
+
 (defun free? (val)
   (if (= val +pill+)
       1
@@ -47,11 +73,10 @@
                     (list-to-bin-trie (cons +wall+ nil) +wall+)))
 
 (define-client-macro tuple (&rest args)
-  (let ((result (reduce (lambda (x acc)
-                          (cons x acc))
-                        args
-                        :from-end t)))
-    `(quote ,result)))
+  (reduce (lambda (x acc)
+            `(cons ,x ,acc))
+          args
+          :from-end t))
 
 ;; =======================================================
 ;; QUEUE IMPLEMENTATIN
@@ -158,18 +183,6 @@
                     map front coord #'right-coord
                     #'wave)))))))))))
 
-(defun world-state-map (ws)
-  (car ws))
-
-(defun world-state-lambda-man-status (ws)
-  (car (cdr ws)))
-
-(defun world-state-ghost-list (ws)
-  (car (cdr (cdr ws))))
-
-(defun world-state-lambda-man-coords (ws)
-  (car (cdr (world-state-lambda-man-status ws))))
-
 (defun mark-way (map element coord direction length)
   (if (= 0 length)
       map
@@ -190,31 +203,15 @@
                 (+left+    (%next (%next (%next map +up+)   +right+) +down+))
                 (otherwise (%next (%next (%next map +left+) +up+)    +down+))))))))
 
-(define-client-macro define-tuple (name &rest fields)
-  (labels ((%gen (fields)
-             (when fields
-               (let* ((field (car fields))
-                      (rest-fields (cdr fields))
-                      (fname (intern (concatenate 'string (symbol-name name) "-" (symbol-name field)))))
-                 (cons 
-                  `(defun ,fname (x)
-                     (car ,(reduce (lambda (acc f) (declare (ignore f)) `(cdr ,acc))
-                                   rest-fields
-                                   :initial-value 'x)))
-                  (%gen rest-fields))))))
-    `(progn
-       ,@(%gen fields))))
-
-(define-tuple ghost-status vitality coord direction)
-
 (defun mark-ghost-ways (map ghosts)
+  #-secd(declare (optimize (debug 3)))
   (labels ((%mark (map ghosts)
              (if (null ghosts)
                  map
                  (let ((g (car ghosts)))
                    (%mark (mark-way map +wall+
-                                    (ghost-status-coord g)
-                                    (ghost-status-direction g)
+                                    (ghost-coord g)
+                                    (ghost-direction g)
                                     +ghost-stay-away-distance+)
                           (cdr ghosts))))))
     (%mark map ghosts)))
@@ -222,9 +219,10 @@
 (defun make-wave-step ()
   (lambda (ai-state world-state)
     #-secd(declare (ignore ai-state))
-    (let* ((lambda-man-coords (world-state-lambda-man-coords world-state))
+    (let* ((lambda-man (world-state-lambda-man world-state))
+           (lambda-man-coords (lambda-man-coord lambda-man))
            (map (get-trie-for-map (car world-state)))
-           (map (mark-ghost-ways map (world-state-ghost-list world-state)))
+           (map (mark-ghost-ways map (world-state-ghosts world-state)))
            (map (put-map-value map lambda-man-coords
                                (cons +lambda-man+ +lambda-man+))))
       ;;(dbug lambda-man-coords)
@@ -239,13 +237,15 @@
 (defun test-wave ()
   (funcall (make-wave-step)
            nil ;; ai state
-           (list '((0 0 0 0 0)
-                   (0 1 0 2 0)
-                   (0 0 1 0 0)
-                   (0 2 1 1 0)
-                   (0 0 0 0 0))
-                 (cons 2 2)
-                 (list (tuple 0 (cons 3 3) +left+)))))
+           (tuple '((0 0 0 0 0)  ;; map
+                    (0 1 0 2 0)
+                    (0 0 1 0 0)
+                    (0 2 1 1 0)
+                    (0 0 0 0 0))
+                  (tuple 0 (cons 2 2) +down+) ;; lambda man
+                  (list (tuple 0 (cons 3 3) +left+)) ;; ghosts
+                  nil ;; fruit
+                  )))
 
 ;; ;; LIGHTING MAN
 ;; (defun lightning-main (init-state ghost-programs)
