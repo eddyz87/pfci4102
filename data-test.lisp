@@ -52,3 +52,15 @@
 (defun bin-trie-nth-update (trie el val)
   (cons (bin-trie-nth-update-inner (car trie) (cdr trie) el val)
         (cdr trie)))
+
+
+;; (if (and a b)
+;;      body1
+;;      body2)
+
+;; (labels ((%l () body2))
+;;   (if a
+;;       (if b
+;;           body1
+;;           (%l))
+;;       (%l)))
