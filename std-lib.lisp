@@ -19,7 +19,9 @@
       `(let (,(car forms)) (let* ,(cdr forms) ,@body))))
 
 (define-client-macro null (val)
-  `(= ,val 0))
+  `(if (atom ,val)
+       1
+     0))
 
 (define-client-constant nil 0)
 
@@ -33,11 +35,11 @@
 ;; REVERSE
 ;; ================================
 (defun reverse-inner (lst acc)
-  (if lst
-      (reverse-inner (cdr lst) 
-                     (cons (car lst)
-                           acc))
-    acc))
+  (if (null lst)
+      acc
+    (reverse-inner (cdr lst) 
+                   (cons (car lst)
+                         acc))))
 
 (defun reverse (lst)
   (reverse-inner lst nil))

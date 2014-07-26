@@ -33,15 +33,15 @@
           0)))
 
 (defun inner-lists-to-bin-tries (lsts acc)
-  (if lsts
-      (let ((current-lst (car lsts)))
-        (inner-lists-to-bin-tries (cdr lsts) 
-                                  (cons (list-to-bin-trie current-lst +wall+)
-                                        acc)))
-      (reverse acc)))
+  (if (null lsts)
+      (reverse acc)
+    (let ((current-lst (car lsts)))
+      (inner-lists-to-bin-tries (cdr lsts) 
+                                (cons (list-to-bin-trie current-lst +wall+)
+                                      acc)))))
 
 (defun get-trie-for-map (map)
-  (list-to-bin-trie (inner-lists-to-bin-tries map nil) +wall+))
+  (list-to-bin-trie (inner-lists-to-bin-tries map 0) +wall+))
 
 ;; =======================================================
 ;; QUEUE IMPLEMENTATIN
@@ -51,12 +51,12 @@
 (defun queue-get (queue)
   (let ((get-lst (car queue))
         (put-lst (cdr queue)))
-    (if get-lst
-        (cons (car get-lst)
-              (cons (cdr get-lst) put-lst))
-        (if put-lst
-            (queue-get (cons (reverse put-lst) nil))
-            (cons nil queue)))))
+    (if (null get-lst)
+        (if (null put-lst)
+            (cons nil queue)
+          (queue-get (cons (reverse put-lst) nil)))
+      (cons (car get-lst)
+            (cons (cdr get-lst) put-lst)))))
 
 (defun queue-put (new-elem queue)
   (let ((get-lst (car queue))
@@ -64,11 +64,11 @@
     (cons get-lst (cons new-elem put-lst))))
 
 (defun queue-empty? (queue)
-  (if (car queue)
-      0
-      (if (cdr queue)
-          0
-          1)))
+  (if (null (car queue))
+      (if (null (cdr queue))
+          1
+        0)
+    0))
 ;; =========================================
 
 (defun get-map-value (map coord)
@@ -83,18 +83,18 @@
 
 (defun up-coord (c)
   (cons (car c)
-        (1- (cdr c))))
+        (- 1 (cdr c))))
 
 (defun down-coord (c)
   (cons (car c)
-        (1+ (cdr c))))
+        (+ 1 (cdr c))))
 
 (defun left-coord (c)
-  (cons (1- (car c))
+  (cons (- 1 (car c))
         (cdr c)))
 
 (defun right-coord (c)
-  (cons (1+ (car c))
+  (cons (+ 1 (car c))
         (cdr c)))
 
 (defun wave (map front)
@@ -114,8 +114,8 @@
            (%try-coord (map front coord move-func search-func)
              (let ((new-coord (funcall move-func coord))
                    (val (get-map-value map coord)))
-               (format t "try-coord: coord = ~A new coord = ~A val = ~A~%"
-                       coord new-coord val)
+               ;; (format t "try-coord: coord = ~A new coord = ~A val = ~A~%"
+               ;;         coord new-coord val)
                (if (= 1 (free? val))
                    (if (= 1 (pill? val))
                        (%restore-path map coord new-coord)
@@ -145,26 +145,26 @@
 (defun main (init-state ghost-programs)
   (cons nil
         (lambda (ai-state world-state)
-          (let ((map (car world-state))
-                (lm-status (car (cdr world-state))))
-            (let ((lm-coord (car (cdr lm-status))))
-              (let ((x (car lm-coord))
-                    (y (cdr lm-coord))
-                    (parsed-map (get-trie-for-map map)))
-                (if (free? (bin-trie-nth (bin-trie-nth parsed-map (- y 1)) x))
-                    (cons nil +up+)
-                  (if (free? (bin-trie-nth (bin-trie-nth parsed-map y) (+ x 1)))
-                      (cons nil +right+)
-                    (if (free? (bin-trie-nth (bin-trie-nth parsed-map (+ y 1)) x))
-                        (cons nil +down+)
-                      (cons nil +left+))))))))))
+          (let* ((map (car world-state))
+                 (lm-status (car (cdr world-state)))
+                 (lm-coord (car (cdr lm-status)))
+                 (x (car lm-coord))
+                 (y (cdr lm-coord))
+                 (parsed-map (get-trie-for-map map)))
+            (if (free? (bin-trie-nth (bin-trie-nth parsed-map (- y 1)) x))
+                (cons nil +up+)
+              (if (free? (bin-trie-nth (bin-trie-nth parsed-map y) (+ x 1)))
+                  (cons nil +right+)
+                (if (free? (bin-trie-nth (bin-trie-nth parsed-map (+ y 1)) x))
+                    (cons nil +down+)
+                  (cons nil +left+))))))))
 
-(defun test ()
-  (let* ((map (get-trie-for-map '((0 0 0 0 0)
-                                  (0 1 1 2 0)
-                                  (0 0 1 0 0)
-                                  (0 2 1 1 0)
-                                  (0 0 0 0 0))))
-         (map (put-map-value map (cons 2 2) +lambda-man+))
-         (front (queue-put (cons 2 2) (make-queue))))
-    (wave map front)))
+;; (defun test ()
+;;   (let* ((map (get-trie-for-map '((0 0 0 0 0)
+;;                                   (0 1 1 2 0)
+;;                                   (0 0 1 0 0)
+;;                                   (0 2 1 1 0)
+;;                                   (0 0 0 0 0))))
+;;          (map (put-map-value map (cons 2 2) +lambda-man+))
+;;          (front (queue-put (cons 2 2) (make-queue))))
+;;     (wave map front)))
