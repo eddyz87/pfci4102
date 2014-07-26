@@ -38,5 +38,12 @@
   (let ((get-lst (car queue))
         (put-lst (cdr queue)))
     (cons get-lst (cons new-elem put-lst))))
+
+(defun queue-empty? (queue)
+  (if (car queue)
+      0
+    (if (cdr queue)
+        0
+      1)))
 ;; =========================================
 
