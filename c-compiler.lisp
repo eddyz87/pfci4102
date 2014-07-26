@@ -30,7 +30,6 @@
                 (otherwise
                  (error "Is not valid global def"))))
 
-
 (defun parse-global-defs (global-defs)
   (dolist (def global-defs)
     (match-global-def def)))
@@ -103,7 +102,8 @@
         (*var-address-exprs* (make-hash-table :test #'eq))
         (*available-registers* (list 'a 'b 'c 'd 'e 'f 'g 'h))
         (*current-var-address* 0))
-        
+
+    (push 'pc (gethash 'pc *var-access-exprs*))
     (parse-global-consts (first program))
     (parse-global-defs (second program))
     (parse-block (third program))))
@@ -112,3 +112,53 @@
   (let ((*current-instructions* nil))
     (compile-c-program program)
     (ghc-asm-dump (transform-labels (reverse *current-instructions*)) t)))
+
+(defparameter *ghost-prog1*
+ '(((+up+ 0)
+    (+right+ 1)
+    (+down+ 2)
+    (+left+ 3)
+    
+    (+wall+ 0))
+   
+   (prefer-h
+    ret-addr)
+   
+   (block
+       sub
+     (block
+         (:= pc ret-addr))
+       ;; (block
+       ;;     (int 3 () (index))
+       ;;   (if (= (& index 254) 0)
+       ;;       (:= prefer-h 0)
+       ;;       (:= prefer-h 1)))
+       ;; (block
+       ;;     (locals dirh dirv)
+       ;;   (locals man-x man-y)
+       ;;   (block
+       ;;       (int 1 () (x y))
+       ;;     (:= man-x x)
+       ;;     (:= man-y y))
+       ;;   (block
+       ;;     (int 3 () (index))
+       ;;     (int 4 (index) (ghost-x ghost-y))
+       ;;     (if (> man-x ghost-x)
+       ;;         (:= dirh +right+)
+       ;;         (:= dirh +left+))
+       ;;     (if (> man-y ghost-y)
+       ;;         (:= dirv +down+)
+       ;;         (:= dirv +up+)))
+       ;;   (block (if (= prefer-h 1)
+       ;;              (int 0 (dirh) ())
+       ;;              (int 0 (dirv) ())))
+       ;;   (halt))
+     (:= ret-addr (label ret))
+     (goto sub)
+     ret
+
+     (:= ret-addr (label ret1))
+     (goto sub)
+     ret1
+     
+     )))

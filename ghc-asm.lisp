@@ -70,6 +70,8 @@
                      tval))))
             (cond ((eq (first expr) 'address)
                    (gethash (second expr) var-address-exprs))
+                  ((eq (first expr) 'label)
+                   (second expr))
                   ((eq (first expr) 'val)
                    (let ((val-inner (ghc-compile-expr (second expr) target available-registers
                                                       var-access-exprs var-address-exprs)))
