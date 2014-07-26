@@ -8,6 +8,33 @@
 (define-client-constant +lm-start-pos+ 5)
 (define-client-constant +gh-start-pos+ 6)
 
+(define-client-constant +up+ 0)
+(define-client-constant +down+ 2)
+(define-client-constant +left+ 3)
+(define-client-constant +right+ 1)
+
+(define-client-constant +lambda-man+ 100)
+(define-client-constant +no-move+ 101)
+
+(defun free? (val)
+  (if (= val +pill+)
+      1
+      (if (= val +power-pill+)
+          1
+          (if (= val +empty+)
+              1
+              0)
+          0)
+      0))
+
+(defun pill? (val)
+  (if (= val +pill+)
+      1
+      (if (= val +power-pill+)
+          1
+          0)
+      0))
+
 (defun inner-lists-to-bin-tries (lsts acc)
   (if lsts
       (let ((current-lst (car lsts)))
@@ -70,14 +97,14 @@
            (%try-coord (map front coord move-func search-func)
              (let ((new-coord (funcall move-func coord))
                    (val (get-map-value coord)))
-               (if (free? val)
-                   (if (pill? val)
+               (if (= 1 (free? val))
+                   (if (= 1 (pill? val))
                        (%restore-path map coord new-coord)
                        (funcall search-func
                                 (put-map-value map coord new-coord)
                                 (queue-put new-coord front)))
                    (funcall search-func map front)))))
-    (if (queue-empty? front)
+    (if (= 1 (queue-empty? front))
         (cons +no-move+ +no-move+)
         (let ((next (queue-get front))
               (coord (car next))
