@@ -31,11 +31,13 @@
      (setf (gethash ,name *client-constants*) ,value)))
 
 (defmacro new-block (return-instruction &body body)
-  (let ((label (gensym "label-name")))
-    `(let ((*current-program* nil)
-           (,label (gensym "label")))
-       ,@body
-       (push-instruction `(,,return-instruction))
+  (let ((label (gensym "label-name"))
+        (body-tail (gensym "body-tail")))
+    `(let* ((*current-program* nil)
+            (,label (gensym "label"))
+            (,body-tail ,@body))
+       (unless ,body-tail
+         (push-instruction `(,,return-instruction)))
        (push (cons ,label (reverse *current-program*))
              *current-blocks*)
        ,label)))
@@ -47,18 +49,18 @@
 
 (defun push-instruction (instr)
   (cond 
-    ((and (eq (first instr) 'join)
-          (eq (first (car *current-program*))
-              'sel))
-     (change-top-instr-to 'tsel))
-    ((and (eq (first instr) 'rtn)
-          (eq (first (car *current-program*))
-              'ap))
-     (change-top-instr-to 'tap))
-    ((and (eq (first instr) 'rtn)
-          (eq (first (car *current-program*))
-              'rap))
-     (change-top-instr-to 'trap))
+    ;; ((and (eq (first instr) 'join)
+    ;;       (eq (first (car *current-program*))
+    ;;           'sel))
+    ;;  (change-top-instr-to 'tsel))
+    ;; ((and (eq (first instr) 'rtn)
+    ;;       (eq (first (car *current-program*))
+    ;;           'ap))
+    ;;  (change-top-instr-to 'tap))
+    ;; ((and (eq (first instr) 'rtn)
+    ;;       (eq (first (car *current-program*))
+    ;;           'rap))
+    ;;  (change-top-instr-to 'trap))
     (t (push instr *current-program*))))
 
 (defun client-macroexpand-1 (term)
@@ -67,45 +69,53 @@
      (apply (gethash function *macro-forms*) (cdr term)))
     (x x)))
 
-(defun lms-compile (term bindings)
+(defun lms-compile (term bindings is-last)
   "bindings - list of all environments"
   (optima:match term
     ((list 'if cond then else)
-     (lms-compile cond bindings)
-     (let* ((then-label (new-block 'join (lms-compile then bindings)))
-            (else-label (new-block 'join (lms-compile else bindings))))
-       (push-instruction `(sel ,then-label ,else-label))))
+     (lms-compile cond bindings nil)
+     (let* ((then-label (new-block (if is-last 'rtn 'join) (lms-compile then bindings is-last)))
+            (else-label (new-block (if is-last 'rtn 'join) (lms-compile else bindings is-last))))
+       (push-instruction `(,(if is-last 'tsel 'sel) ,then-label ,else-label))
+       is-last))
 
     ((list 'setq var value)
-     (lms-compile value bindings)
-     (push-instruction `(st ,@(find-variable var bindings))))
+     (lms-compile value bindings nil)
+     (push-instruction `(st ,@(find-variable var bindings)))
+     nil)
     
     ((list* 'lambda params body)
      (let ((label (new-block 'rtn (lms-compile
                                    `(progn ,@body)
-                                   (cons params bindings)))))
-       (push-instruction `(ldf ,label))))
+                                   (cons params bindings)
+                                   t))))
+       (push-instruction `(ldf ,label))
+       nil))
     
     ((list* 'progn body)
-     (dolist (b body)
-       (lms-compile b bindings)))
+     (dolist (b (butlast body))
+       (lms-compile b bindings nil))
+     (when body
+       (lms-compile (car (last body)) bindings is-last)))
     
     ((list* 'rap (list* 'lambda vars body) params)
      (push-instruction `(dum ,(length params)))
      (dolist (p params)
-       (lms-compile p (cons vars bindings)))
+       (lms-compile p (cons vars bindings) nil))
      (let ((label (new-block 'rtn (lms-compile
                                    `(progn ,@body)
-                                   (cons vars bindings)))))
+                                   (cons vars bindings)
+                                   t))))
        (push-instruction `(ldf ,label)))
-     (push-instruction `(rap ,(length params))))
+     (push-instruction `(,(if is-last 'trap 'rap) ,(length params)))
+     is-last)
 
     ((guard (list* function _) (gethash function *macro-forms*))
-     (lms-compile (client-macroexpand-1 term) bindings))
+     (lms-compile (client-macroexpand-1 term) bindings is-last))
     
     ((list* function params)
      (dolist (p params)
-       (lms-compile p bindings))
+       (lms-compile p bindings nil))
      (case function
        (+ (push-instruction `(add)))
        (- (push-instruction `(sub)))
@@ -121,27 +131,29 @@
        (dbug (push-instruction `(dbug)))
        (brk (push-instruction `(brk)))
        (otherwise
-        (lms-compile function bindings)
-        (push-instruction `(ap ,(length params)))
+        (lms-compile function bindings nil)
+        (push-instruction `(,(if is-last 'tap 'ap) ,(length params)))
+        is-last
         )))
 
     ((guard x (symbolp x))
      (let ((const (gethash x *client-constants*)))
        (push-instruction (if const
                              `(ldc ,const)
-                             `(ld ,@(find-variable x bindings))))))
+                             `(ld ,@(find-variable x bindings))))
+       nil))
 
     ((guard x (numberp x))
-     (push-instruction `(ldc ,x)))
-
-    )
-  *current-program*)
+     (push-instruction `(ldc ,x))
+     nil))
+  ;;*current-program*
+  )
 
 (defun compile-lisp (term &optional (top-names '(initial-state ghost-programs)))
   (let ((*current-program* nil)
         (*current-blocks* nil))
-    (lms-compile term (list top-names))
-    (push-instruction `(rtn))
+    (unless (lms-compile term (list top-names) t)
+      (push-instruction `(rtn)))
     (append
      (reverse *current-program*)
      (mapcan #'copy-list *current-blocks*))))
