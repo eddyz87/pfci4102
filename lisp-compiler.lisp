@@ -148,17 +148,26 @@
          (main-body nil)
          (bodies nil))
     (dolist (form forms)
-      (if (eq (second form)
-              'main)
-          (progn
-            (setf main-params (third form))
-            (setf main-body (cdddr form)))
-          (push (cdr form) bodies)))
+      (cond ((eq (first form)
+                 'defun)
+             (if (eq (second form)
+                     'main)
+                 (progn
+                   (setf main-params (third form))
+                   (setf main-body (cdddr form)))
+                 (push (cdr form) bodies)))
+            ((eq (first form)
+                 'define-client-constant)
+             (setf (gethash (second form) *client-constants*)
+                   (eval (third form))))
+            ((eq (first form)
+                 'define-client-macro)
+             (setf (gethash (second form) *macro-forms*)
+                   (eval `(lambda ,(cdr form)))))
+            ((eq (first form)
+                 'in-package)
+             nil)))
     (compile-lisp `(labels ,bodies ,@main-body) main-params)))
-
-(define-client-macro test-macro (a b)
-  (format t "bzzzzz~%")
-  `(+ ,a ,b))
 
 (define-client-macro labels (forms &rest body)
   (let ((param-names (mapcar #'first forms))
@@ -179,3 +188,9 @@
 
 (define-client-macro null (val)
   `(= ,val 0))
+
+(define-client-macro funcall (func &rest args)
+  `(,func ,@args))
+
+(define-client-macro function (func)
+  func)
