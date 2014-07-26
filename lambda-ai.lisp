@@ -16,6 +16,34 @@
 (define-client-constant +lambda-man+ 100)
 (define-client-constant +no-move+ 101)
 
+(define-client-constant +ghost-stay-away-distance+ 3)
+
+(define-client-macro define-tuple (name &rest fields)
+  (labels ((%gen (fields top-fields)
+             (when fields
+               (let* ((field (car fields))
+                      (rest-fields (cdr fields))
+                      (fname (intern (concatenate 'string (symbol-name name) "-" (symbol-name field))))
+                      (cdrs (reduce (lambda (acc f) (declare (ignore f)) `(cdr ,acc))
+                                   top-fields
+                                   :initial-value 'x)))
+                 (cons
+                  (if rest-fields
+                      `(defun ,fname (x) (car ,cdrs))
+                      `(defun ,fname (x) ,cdrs))
+                  (%gen rest-fields (cons field top-fields)))))))
+    `(progn
+       ,@(%gen fields nil))))
+
+(define-tuple world-state
+    map lambda-man ghosts fruit)
+
+(define-tuple lambda-man
+    vitality coord direction lives score)
+
+(define-tuple ghost
+    vitality coord direction)
+
 (defun free? (val)
   (if (= val +pill+)
       1
@@ -45,11 +73,10 @@
                     (list-to-bin-trie (cons +wall+ nil) +wall+)))
 
 (define-client-macro tuple (&rest args)
-  (let ((result (reduce (lambda (x acc)
-                          (cons x acc))
-                        args
-                        :from-end t)))
-    `(quote ,result)))
+  (reduce (lambda (x acc)
+            `(cons ,x ,acc))
+          args
+          :from-end t))
 
 ;; =======================================================
 ;; QUEUE IMPLEMENTATIN
@@ -78,6 +105,7 @@
         0)
     0))
 ;; =========================================
+
 
 (defun get-map-value (map coord)
   (let ((x (car coord))
@@ -155,20 +183,46 @@
                     map front coord #'right-coord
                     #'wave)))))))))))
 
-(defun world-state-map (ws)
-  (car ws))
+(defun mark-way (map element coord direction length)
+  (if (= 0 length)
+      map
+      (let* ((next-coord (case direction
+                           (+up+      (up-coord coord))
+                           (+down+    (down-coord coord))
+                           (+left+    (left-coord coord))
+                           (otherwise (right-coord coord))))
+             (next-value (get-map-value map next-coord)))
+        (labels ((%next (map direction)
+                   (mark-way (put-map-value map next-coord element)
+                             element next-coord direction (- length 1))))
+          (if (= 1 (free? next-value))
+              (%next map direction)
+              (case direction
+                (+up+      (%next (%next (%next map +left+) +right+) +down+))
+                (+down+    (%next (%next (%next map +left+) +right+) +up+))
+                (+left+    (%next (%next (%next map +up+)   +right+) +down+))
+                (otherwise (%next (%next (%next map +left+) +up+)    +down+))))))))
 
-(defun world-state-lambda-man-status (ws)
-  (car (cdr ws)))
-
-(defun world-state-lambda-man-coords (ws)
-  (car (cdr (world-state-lambda-man-status ws))))
+(defun mark-ghost-ways (map ghosts)
+  #-secd(declare (optimize (debug 3)))
+  (labels ((%mark (map ghosts)
+             (if (null ghosts)
+                 map
+                 (let ((g (car ghosts)))
+                   (%mark (mark-way map +wall+
+                                    (ghost-coord g)
+                                    (ghost-direction g)
+                                    +ghost-stay-away-distance+)
+                          (cdr ghosts))))))
+    (%mark map ghosts)))
 
 (defun make-wave-step ()
   (lambda (ai-state world-state)
     #-secd(declare (ignore ai-state))
-    (let* ((lambda-man-coords (world-state-lambda-man-coords world-state))
+    (let* ((lambda-man (world-state-lambda-man world-state))
+           (lambda-man-coords (lambda-man-coord lambda-man))
            (map (get-trie-for-map (car world-state)))
+           (map (mark-ghost-ways map (world-state-ghosts world-state)))
            (map (put-map-value map lambda-man-coords
                                (cons +lambda-man+ +lambda-man+))))
       ;;(dbug lambda-man-coords)
@@ -179,31 +233,36 @@
   #-secd(declare (ignore init-state ghost-programs))
   (cons nil (make-wave-step)))
 
-#-secd(defun test-wave ()
+#-secd
+(defun test-wave ()
   (funcall (make-wave-step)
            nil ;; ai state
-           (list '((0 0 0 0 0)
-                   (0 1 0 2 0)
-                   (0 0 1 0 0)
-                   (0 2 1 1 0)
-                   (0 0 0 0 0))
-                 (cons 2 2))))
+           (tuple '((0 0 0 0 0)  ;; map
+                    (0 1 0 2 0)
+                    (0 0 1 0 0)
+                    (0 2 1 1 0)
+                    (0 0 0 0 0))
+                  (tuple 0 (cons 2 2) +down+) ;; lambda man
+                  (list (tuple 0 (cons 3 3) +left+)) ;; ghosts
+                  nil ;; fruit
+                  )))
 
-;; LIGHTING MAN
-(defun lightning-main (init-state ghost-programs)
-  (cons nil
-        (lambda (ai-state world-state)
-          (let* ((map (car world-state))
-                 (lm-status (car (cdr world-state)))
-                 (lm-coord (car (cdr lm-status)))
-                 (x (car lm-coord))
-                 (y (cdr lm-coord))
-                 (parsed-map (get-trie-for-map map)))
-            (if (free? (bin-trie-nth (bin-trie-nth parsed-map (- y 1)) x))
-                (cons nil +up+)
-              (if (free? (bin-trie-nth (bin-trie-nth parsed-map y) (+ x 1)))
-                  (cons nil +right+)
-                (if (free? (bin-trie-nth (bin-trie-nth parsed-map (+ y 1)) x))
-                    (cons nil +down+)
-                  (cons nil +left+))))))))
-
+;; ;; LIGHTING MAN
+;; (defun lightning-main (init-state ghost-programs)
+;;   #-secd(declare (ignore init-state ghost-programs))
+;;   (cons nil
+;;         (lambda (ai-state world-state)
+;;           #-secd(declare (ignore ai-state))
+;;           (let* ((map (car world-state))
+;;                  (lm-status (car (cdr world-state)))
+;;                  (lm-coord (car (cdr lm-status)))
+;;                  (x (car lm-coord))
+;;                  (y (cdr lm-coord))
+;;                  (parsed-map (get-trie-for-map map)))
+;;             (if (free? (bin-trie-nth (bin-trie-nth parsed-map (- y 1)) x))
+;;                 (cons nil +up+)
+;;               (if (free? (bin-trie-nth (bin-trie-nth parsed-map y) (+ x 1)))
+;;                   (cons nil +right+)
+;;                 (if (free? (bin-trie-nth (bin-trie-nth parsed-map (+ y 1)) x))
+;;                     (cons nil +down+)
+;;                   (cons nil +left+))))))))
