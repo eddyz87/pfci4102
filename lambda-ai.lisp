@@ -152,17 +152,22 @@
 (defun world-state-map (ws)
   (car ws))
 
-(defun world-state-lambda-man (ws)
+(defun world-state-lambda-man-status (ws)
   (car (cdr ws)))
+
+(defun world-state-lambda-man-coords (ws)
+  (car (cdr (world-state-lambda-man-status ws))))
 
 (defun make-wave-step ()
   (lambda (ai-state world-state)
     #-secd(declare (ignore ai-state))
-    (let* ((lambda-man-coords (world-state-lambda-man world-state))
-           (map (get-trie-for-map (world-state-map world-state)))
+    (let* ((lambda-man-coords (world-state-lambda-man-coords world-state))
+           (map (get-trie-for-map (car world-state)))
            (map (put-map-value map lambda-man-coords
                                (cons +lambda-man+ +lambda-man+))))
-      (cons nil (wave map (queue-put lambda-man-coords (make-queue)))))))
+      ;;(dbug lambda-man-coords)
+      (cons nil (wave map (queue-put lambda-man-coords (make-queue))))
+      )))
 
 (defun wave-main (init-state ghost-programs)
   #-secd(declare (ignore init-state ghost-programs))
