@@ -23,17 +23,14 @@
           1
           (if (= val +empty+)
               1
-              0)
-          0)
-      0))
+              0))))
 
 (defun pill? (val)
   (if (= val +pill+)
       1
       (if (= val +power-pill+)
           1
-          0)
-      0))
+          0)))
 
 (defun inner-lists-to-bin-tries (lsts acc)
   (if lsts
@@ -85,6 +82,22 @@
         (y (cdr coord)))
     (bin-trie-nth-update map y (bin-trie-nth-update map x val))))
 
+(defun up-coord (c)
+  (cons (car c)
+        (1- (cdr c))))
+
+(defun down-coord (c)
+  (cons (car c)
+        (1+ (cdr c))))
+
+(defun left-coord (c)
+  (cons (1- (car c))
+        (cdr c)))
+
+(defun right-coord (c)
+  (cons (1+ (car c))
+        (cdr c)))
+
 (defun wave (map front)
   (labels ((%decode-move (prev-coord coord)
              (let ((px (car prev-coord))
@@ -95,13 +108,15 @@
                    (if (> y py) +down+ +up+)
                    (if (> x px) +right+ +left+))))
            (%restore-path (map prev-coord coord)
-             (if (= (car (get-map-value map prev-coord))
+             (if (= (get-map-value map prev-coord)
                     +lambda-man+)
                  (%decode-move prev-coord coord)
-                 (%restore-path map (get-map-value prev-coord) prev-coord)))
+                 (%restore-path map (get-map-value map prev-coord) prev-coord)))
            (%try-coord (map front coord move-func search-func)
              (let ((new-coord (funcall move-func coord))
-                   (val (get-map-value coord)))
+                   (val (get-map-value map coord)))
+               (format t "try-coord: coord = ~A new coord = ~A val = ~A~%"
+                       coord new-coord val)
                (if (= 1 (free? val))
                    (if (= 1 (pill? val))
                        (%restore-path map coord new-coord)
@@ -110,20 +125,29 @@
                                 (queue-put new-coord front)))
                    (funcall search-func map front)))))
     (if (= 1 (queue-empty? front))
-        (cons +no-move+ +no-move+)
-        (let ((next (queue-get front))
-              (coord (car next))
-              (front (cdr next))) 
+        +no-move+
+        (let* ((next (queue-get front))
+               (coord (car next))
+               (front (cdr next))) 
           (%try-coord
-           map front coord up-coord
+           map front coord #'up-coord
            (lambda (map front)
              (%try-coord
-              map front coord down-coord
+              map front coord #'down-coord
               (lambda (map front)
                 (%try-coord
-                 map front coord left-coord
+                 map front coord #'left-coord
                  (lambda (map front)
                    (%try-coord
-                    map front coord right-coord
+                    map front coord #'right-coord
                     #'wave)))))))))))
 
+(defun test ()
+  (let* ((map (get-trie-for-map '((0 0 0 0 0)
+                                  (0 1 1 2 0)
+                                  (0 0 1 0 0)
+                                  (0 2 1 1 0)
+                                  (0 0 0 0 0))))
+         (map (put-map-value map (cons 2 2) +lambda-man+))
+         (front (queue-put (cons 2 2) (make-queue))))
+    (wave map front)))
