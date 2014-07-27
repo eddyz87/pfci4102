@@ -170,43 +170,65 @@
 (defun wave3 (map front)
   #-secd(declare (optimize (debug 3) (safety 3)))
   #-secd(format t "wave3 map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
-  (labels ((%decode-move (prev-coord coord)
-             (let ((px (car prev-coord))
-                   (py (cdr prev-coord))
-                   (x (car coord))
-                   (y (cdr coord)))
-               (if (= x px)
-                   (if (> y py) +down+ +up+)
-                   (if (> x px) +right+ +left+))))
-           (%restore-path (map prev-coord coord)
-             ;; (format t "restore-path: prev-coord = ~A val = ~A~%" coord (get-map-value map prev-coord))
-             (if (= (car (get-map-value map prev-coord))
-                    +lambda-man+)
-                 (%decode-move prev-coord coord)
-                 (%restore-path map (get-map-value map prev-coord) prev-coord))))
-    (if (= 1 (queue-empty? front))
-        (progn
-          #+secd(dbug 8888)
-          +no-move+)
-        (untuple
-         (step-info front) (queue-get front)
-         (untuple
-          (coord prev-coord) step-info
-          (let ((val (get-map-value map coord)))
-            ;;#+secd (dbug (cons step-info val))
-            (if (atom val)
-                (if (= 1 (free? val))
-                    (if (= 1 (pill? val))
-                        (%restore-path map prev-coord coord)
-                        (labels ((%update-front (front move-func)
-                                   (queue-put (tuple (funcall move-func coord) coord) front)))
-                          (wave3 (put-map-value map coord prev-coord)
-                                 (%update-front
-                                  (%update-front
-                                   (%update-front
-                                    (%update-front front #'up-coord) #'down-coord) #'left-coord) #'right-coord))))
-                    (wave3 map front))
-                (wave3 map front))))))))
+  (let ((longest-path-len 0)
+        (longest-path-coords 0))
+    (labels ((%decode-move (prev-coord coord)
+               (let ((px (car prev-coord))
+                     (py (cdr prev-coord))
+                     (x (car coord))
+                     (y (cdr coord)))
+                 (if (= x px)
+                     (if (> y py) +down+ +up+)
+                     (if (> x px) +right+ +left+))))
+             (%restore-path (map prev-coord coord)
+               ;; (format t "restore-path: prev-coord = ~A val = ~A~%" coord (get-map-value map prev-coord))
+               (if (= (car (get-map-value map prev-coord))
+                      +lambda-man+)
+                   (%decode-move prev-coord coord)
+                   (%restore-path map (get-map-value map prev-coord) prev-coord)))
+             (%wave (map front)
+               (if (= 1 (queue-empty? front))
+                   (progn
+                     #+secd(dbug 7777)
+                     #-secd(format t "rec map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
+                     #-secd (format t "Trying recovery strategy: len = ~A~%" longest-path-len)
+                     (if (> longest-path-len 0)
+                         (untuple (coord prev-coord) longest-path-coords
+                                  #-secd (format t "Trying recovery strategy: coord = ~A prev-coord = ~A~%"
+                                                 coord prev-coord)
+                                  (%restore-path map prev-coord coord))
+                         (progn
+                           #+secd(dbug 8888)
+                           +no-move+)))
+                   (untuple
+                    (step-info front) (queue-get front)
+                    (untuple
+                     (coord prev-coord len) step-info
+                     (let ((val (get-map-value map coord)))
+                       ;;#+secd (dbug (cons step-info val))
+                       (if (atom val)
+                           (if (= 1 (free? val))
+                               (progn
+                                 (if (> len longest-path-len)
+                                     (progn
+                                       (setq longest-path-len len)
+                                       (setq longest-path-coords (tuple coord prev-coord)))
+                                     0)
+                                 (if (= 1 (pill? val))
+                                     (%restore-path map prev-coord coord)
+                                     (labels ((%update-front (front move-func)
+                                                (queue-put (tuple (funcall move-func coord)
+                                                                  coord
+                                                                  (+ len 1))
+                                                           front)))
+                                       (%wave (put-map-value map coord prev-coord)
+                                              (%update-front
+                                               (%update-front
+                                                (%update-front
+                                                 (%update-front front #'up-coord) #'down-coord) #'left-coord) #'right-coord)))))
+                               (%wave map front))
+                           (%wave map front))))))))
+      (%wave map front))))
 
 (defun move-coord (coord direction)
   #-secd(declare (optimize (debug 3) (safety 3)))
@@ -283,7 +305,7 @@
            (map (mark-ghost-ways map lambda-man-coords (world-state-ghosts world-state))))
       #-secd(format t "final map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
       ;;(dbug lambda-man-coords)
-      (let ((result (cons nil (wave3 map (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+)) (make-queue))))))
+      (let ((result (cons nil (wave3 map (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+) 0) (make-queue))))))
         ;;#+secd(dbug (cons 5555 result))
         result)
       )))
@@ -297,9 +319,9 @@
   (funcall (make-wave-step)
            nil ;; ai state
            (tuple '((0 0 0 0 0)  ;; map
-                    (0 1 2 2 0)
-                    (0 2 0 2 0)
-                    (0 2 1 2 0)
+                    (0 1 1 1 0)
+                    (0 1 0 1 0)
+                    (0 1 1 1 0)
                     (0 0 0 0 0))
                   (tuple 0 (cons 2 3) +left+) ;; lambda man
                   (list (tuple 0 (cons 1 3) +up+)) ;; ghosts
