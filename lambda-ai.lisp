@@ -257,27 +257,36 @@
                       ;;       #-secd (format t ">> taking direction, length = ~A~%" length1)
                       ;;       (wave2 map (queue-put (tuple (- length1 1) next-coord direction)
                       ;;                             front))))
-                      ;; (let* ((moves (mcase direction
-                      ;;                      (+up+      (tuple (tuple +down+ +left+ +right+) +up+))
-                      ;;                      (+down+    (tuple (tuple +up+   +left+ +right+) +down+))
-                      ;;                      (+left+    (tuple (tuple +down+ +up+   +right+) +left+))
-                      ;;                      (otherwise (tuple (tuple +down+ +left+ +up+)    +right+))
-                      ;;                     ))))
-                      (labels ((%update-front (front direction)
-                                 (let* ((next-coord1 (move-coord coord direction))
-                                        (next-value1 (get-map-value map next-coord1)))
-                                   #-secd (format t "trying direction ~A nc = ~A nv = ~A free? = ~A~%"
-                                                  direction next-coord1 next-value1 (free? next-value1))
-                                   (if (= 1 (free? next-value1))
-                                       (queue-put (tuple (- length1 1) next-coord1 direction)
-                                                  front)
-                                       front))))
-                        ;;#-secd(format t "<< bad direction~%")
-                        (wave2 map
-                               (%update-front
-                                (%update-front
-                                 (%update-front
-                                  (%update-front front +up+) +down+) +left+) +right+)))
+                      (let* ((moves1 (mcase direction
+                                            (+up+      (tuple (tuple +up+    +left+ +right+) +down+))
+                                            (+down+    (tuple (tuple +down+  +left+ +right+) +up+))
+                                            (+left+    (tuple (tuple +left+  +up+   +down+)  +right+))
+                                            (otherwise (tuple (tuple +right+ +down+ +up+)    +left+))
+                                            ))
+                             (moves (car moves1))
+                             (opposite (cdr moves1))
+                             (good-updates-happened 0))
+                        (untuple
+                         (m1 m2 m3) moves
+                         (labels ((%update-front (front direction)
+                                    (let* ((next-coord1 (move-coord coord direction))
+                                           (next-value1 (get-map-value map next-coord1)))
+                                      #-secd (format t "trying direction ~A nc = ~A nv = ~A free? = ~A~%"
+                                                     direction next-coord1 next-value1 (free? next-value1))
+                                      (if (= 1 (free? next-value1))
+                                          (progn
+                                            (setq good-updates-happened 1)
+                                            (queue-put (tuple (- length1 1) next-coord1 direction)
+                                                       front))
+                                          front))))
+                           (let ((front (%update-front
+                                         (%update-front
+                                          (%update-front front m1) m2) m3)))
+                             ;;#-secd(format t "<< bad direction~%")
+                             (wave2 map
+                                    (if (= 1 good-updates-happened)
+                                        front
+                                        (%update-front front opposite)))))))
                       map))))))
 
 (defun mark-way (map lm-coord coord direction)
@@ -325,12 +334,12 @@
   (funcall (make-wave-step)
            nil ;; ai state
            (tuple '((0 0 0 0 0)  ;; map
-                    (0 1 1 1 0)
-                    (0 1 0 1 0)
-                    (0 1 1 1 0)
+                    (0 1 2 2 0)
+                    (0 2 0 1 0)
+                    (0 1 2 2 0)
                     (0 0 0 0 0))
-                  (tuple 0 (cons 2 3) +left+) ;; lambda man
-                  (list (tuple 0 (cons 1 3) +up+)) ;; ghosts
+                  (tuple 0 (cons 1 3) +left+) ;; lambda man
+                  (list (tuple 0 (cons 3 2) +down+)) ;; ghosts
                   nil ;; fruit
                   )))
 
