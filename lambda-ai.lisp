@@ -8,6 +8,12 @@
 (define-client-constant +lm-start-pos+ 5)
 (define-client-constant +gh-start-pos+ 6)
 
+(define-client-constant +stay-away-marker+ 102)
+
+(define-client-constant +vitality-standard+ 0)
+(define-client-constant +vitality-fright+ 1)
+(define-client-constant +vitality-invisible+ 2)
+
 (define-client-constant +up+ 0)
 (define-client-constant +down+ 2)
 (define-client-constant +left+ 3)
@@ -44,6 +50,19 @@
 (define-tuple ghost
     vitality coord direction)
 
+(define-client-macro mcase (what-expr &rest forms)
+  (let ((what (gensym "what")))
+    (labels ((%gen (forms)
+               (if forms
+                   (let ((form (car forms)))
+                     (if (eq (car form) 'otherwise)
+                         `(progn ,@(cdr form))
+                         `(if (= ,what ,(car form))
+                              (progn ,@(cdr form))
+                              ,(%gen (cdr forms)))))
+                   (error "'case' without 'otherwise' final form:~%  ~A" forms))))
+      `(let ((,what ,what-expr)) ,(%gen forms)))))
+
 (defun free? (val)
   (if (= val +pill+)
       1
@@ -51,7 +70,9 @@
           1
           (if (= val +empty+)
               1
-              0))))
+              (if (= val +fruit+)
+                  1
+                  0)))))
 
 (defun pill? (val)
   (if (= val +pill+)
@@ -166,7 +187,10 @@
                        (funcall search-func map front))
                    (funcall search-func map front)))))
     (if (= 1 (queue-empty? front))
-        +no-move+
+        ;;+no-move+
+        (progn
+          #+secd(dbug 8888)
+          +right+)
         (let* ((next (queue-get front))
                (coord (car next))
                (front (cdr next))) 
@@ -183,37 +207,95 @@
                     map front coord #'right-coord
                     #'wave)))))))))))
 
-(defun mark-way (map element coord direction length)
-  (if (= 0 length)
-      map
-      (let* ((next-coord (case direction
-                           (+up+      (up-coord coord))
-                           (+down+    (down-coord coord))
-                           (+left+    (left-coord coord))
-                           (otherwise (right-coord coord))))
-             (next-value (get-map-value map next-coord)))
-        (labels ((%next (map direction)
-                   (mark-way (put-map-value map next-coord element)
-                             element next-coord direction (- length 1))))
-          (if (= 1 (free? next-value))
-              (%next map direction)
-              (case direction
-                (+up+      (%next (%next (%next map +left+) +right+) +down+))
-                (+down+    (%next (%next (%next map +left+) +right+) +up+))
-                (+left+    (%next (%next (%next map +up+)   +right+) +down+))
-                (otherwise (%next (%next (%next map +left+) +up+)    +down+))))))))
+(define-client-macro untuple (vars form &rest body)
+  (let ((tmp (gensym "tmp")))
+    (labels ((%gen (fields accum)
+               (if fields
+                   (let* ((field (car fields))
+                          (rest-fields (cdr fields))
+                          (cdrs (reduce (lambda (acc f) (declare (ignore f)) `(cdr ,acc))
+                                        accum
+                                        :initial-value tmp)))
+                     (%gen rest-fields
+                           (cons `(,field ,(if rest-fields `(car ,cdrs) cdrs))
+                                 accum)))
+                   (reverse accum))))
+      `(let* ((,tmp ,form)
+              ,@(%gen vars nil))
+         ,@body))))
 
-(defun mark-ghost-ways (map ghosts)
+(defun move-coord (coord direction)
+  #-secd(declare (optimize (debug 3) (safety 3)))
+  (mcase direction
+         (+up+ (up-coord coord))
+         (+down+ (down-coord coord))
+         (+left+ (left-coord coord))
+         (otherwise (right-coord coord))))
+
+(defun wave2 (map front)
+  #-secd(declare (optimize (debug 3) (safety 3)))
+  #-secd(format t "wave2 map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
+  (if (= 1 (queue-empty? front))
+      map
+      (untuple
+       (step-info front) (queue-get front)
+       (untuple (length1 coord direction) step-info
+                (let* ((next-coord (move-coord coord direction))
+                       (next-value (get-map-value map next-coord))
+                       (map (put-map-value map coord +stay-away-marker+)))
+                  #-secd(format t "wave2: dir = ~A c = ~A nc = ~A nv = ~A free? = ~A len = ~A~%"
+                                direction coord next-coord next-value (free? next-value) length1)
+                  (if (> length1 0)
+                      (if (= 1 (free? next-value))
+                          (progn
+                            #-secd (format t ">> taking direction, length = ~A~%" length1)
+                            (wave2 map (queue-put (tuple (- length1 1) next-coord direction)
+                                                  front)))
+                          (labels ((%update-front (front direction)
+                                     (let* ((next-coord1 (move-coord coord direction))
+                                            (next-value1 (get-map-value map next-coord1)))
+                                       #-secd (format t "trying direction ~A nc = ~A nv = ~A free? = ~A~%"
+                                                      direction next-coord1 next-value1 (free? next-value1))
+                                       (if (= 1 (free? next-value1))
+                                           (queue-put (tuple (- length1 1) next-coord1 direction)
+                                                      front)
+                                           front))))
+                            #-secd(format t "<< bad direction~%")
+                            (wave2 map
+                                   (%update-front
+                                    (%update-front
+                                     (%update-front
+                                      (%update-front front +up+) +down+) +left+) +right+))))
+                      map))))))
+
+(defun mark-way (map lm-coord coord direction)
+  (let* ((lm (get-map-value map lm-coord))
+         (map (wave2 (put-map-value map lm-coord +stay-away-marker+)
+                     (queue-put (tuple +ghost-stay-away-distance+ coord direction) (make-queue))))
+         (map (put-map-value map lm-coord lm)))
+    #-secd(format t "map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
+    map))
+
+(defun mark-ghost-ways (map lm-coord ghosts)
   #-secd(declare (optimize (debug 3)))
   (labels ((%mark (map ghosts)
              (if (null ghosts)
                  map
                  (let ((g (car ghosts)))
-                   (%mark (mark-way map +wall+
-                                    (ghost-coord g)
-                                    (ghost-direction g)
-                                    +ghost-stay-away-distance+)
-                          (cdr ghosts))))))
+                   ;;#+secd(dbug g)
+                   (%mark
+                    ;; (if (= +vitality-standard+ (ghost-vitality g))
+                    ;;           (progn
+                    ;;             (dbug 77777)
+                    ;;             (mark-way map +wall+
+                    ;;                       (ghost-coord g)
+                    ;;                       (ghost-direction g)
+                    ;;                       +ghost-stay-away-distance+))
+                    ;;           map)
+                    (if (= +vitality-standard+ (ghost-vitality g))
+                        (mark-way map lm-coord (ghost-coord g) (ghost-direction g))
+                        map)
+                    (cdr ghosts))))))
     (%mark map ghosts)))
 
 (defun make-wave-step ()
@@ -221,10 +303,11 @@
     #-secd(declare (ignore ai-state))
     (let* ((lambda-man (world-state-lambda-man world-state))
            (lambda-man-coords (lambda-man-coord lambda-man))
-           (map (get-trie-for-map (car world-state)))
-           (map (mark-ghost-ways map (world-state-ghosts world-state)))
-           (map (put-map-value map lambda-man-coords
+           (map1 (get-trie-for-map (car world-state)))
+           (map1 (mark-ghost-ways map1 lambda-man-coords (world-state-ghosts world-state)))
+           (map (put-map-value map1 lambda-man-coords
                                (cons +lambda-man+ +lambda-man+))))
+      #-secd(format t "final map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map1)))
       ;;(dbug lambda-man-coords)
       (cons nil (wave map (queue-put lambda-man-coords (make-queue))))
       )))
@@ -238,12 +321,12 @@
   (funcall (make-wave-step)
            nil ;; ai state
            (tuple '((0 0 0 0 0)  ;; map
-                    (0 1 0 2 0)
-                    (0 0 1 0 0)
                     (0 2 1 1 0)
+                    (0 1 0 1 0)
+                    (0 1 1 1 0)
                     (0 0 0 0 0))
-                  (tuple 0 (cons 2 2) +down+) ;; lambda man
-                  (list (tuple 0 (cons 3 3) +left+)) ;; ghosts
+                  (tuple 0 (cons 1 2) +down+) ;; lambda man
+                  (list (tuple 0 (cons 2 3) +down+)) ;; ghosts
                   nil ;; fruit
                   )))
 
