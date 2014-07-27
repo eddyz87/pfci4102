@@ -44,6 +44,9 @@
 (defun make-label ()
   (gensym "label"))
 
+(defvar *func-ret-label-vars* (make-hash-table :test #'eq))
+(defvar *func-par-vars* (make-hash-table :test #'eq))
+
 (defun handle-stmt (stmt)
   (optima:match 
    stmt
@@ -85,6 +88,24 @@
           (handle-stmt `(:= ,out-var ,in-expr)))
     (let ((val (ghc-compile-expr e (car *available-registers*) (cdr *available-registers*) *var-access-exprs* *var-address-exprs*)))
       (push `(int ,val) *current-instructions*)))
+   ((list* 'func label in-params out-params body)
+    (let ((ret-label (gensym "ret")))
+      (parse-global-defs (cons ret-label (append in-params out-params)))
+      (setf (gethash label *func-par-vars*) in-params)
+      (setf (gethash label *func-ret-label-vars*) ret-label)
+      (handle-stmt label)
+      (handle-stmt `(block ,@body))
+      (handle-stmt `(:= pc ,ret-label))))
+   ((list* 'call func params)
+    (let ((vars (gethash func *func-par-vars*))
+          (ret-label-var (gethash func *func-ret-label-vars*))
+          (ret-label (gensym "ret-label")))
+      (loop for v in vars
+         for p in params
+         do (handle-stmt `(:= ,v ,p)))
+      (handle-stmt `(:= ,ret-label-var (label ,ret-label)))
+      (handle-stmt `(goto ,func))
+      (handle-stmt ret-label)))
    (e
     (ghc-compile-expr e nil *available-registers* *var-access-exprs* *var-address-exprs*))
    ))
@@ -100,6 +121,8 @@
 (defun compile-c-program (program)
   (let ((*var-access-exprs* (make-hash-table :test #'eq))
         (*var-address-exprs* (make-hash-table :test #'eq))
+        (*func-ret-label-vars* (make-hash-table :test #'eq))
+        (*func-par-vars* (make-hash-table :test #'eq))
         (*available-registers* (list 'a 'b 'c 'd 'e 'f 'g 'h))
         (*current-var-address* 0))
 
@@ -121,13 +144,15 @@
     
     (+wall+ 0))
    
-   (prefer-h
+   (var1
     ret-addr)
    
    (block
-       sub
+       (goto start)
+       (func calc1 (c1x c1y) (c1r)
+             (:= c1r (+ c1x c1y)))
      (block
-         (:= pc ret-addr))
+         start
        ;; (block
        ;;     (int 3 () (index))
        ;;   (if (= (& index 254) 0)
@@ -153,12 +178,9 @@
        ;;              (int 0 (dirh) ())
        ;;              (int 0 (dirv) ())))
        ;;   (halt))
-     (:= ret-addr (label ret))
-     (goto sub)
-     ret
-
-     (:= ret-addr (label ret1))
-     (goto sub)
-     ret1
-     
-     )))
+       (block
+         (call calc1 5 10)
+         (:= var1 c1r)
+         (call calc1 20 30)
+         (+= var1 c1r))
+     ))))
