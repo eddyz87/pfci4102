@@ -93,6 +93,16 @@
 ;;         (+fruit+ 1)
          (otherwise 0)))
 
+(defun pill-or-fruit? (val fruit-ticks ticks-to-go)
+  (mcase val
+         (+pill+ 1)
+         (+power-pill+ 1)
+         (+fruit+ (if (> fruit-ticks ticks-to-go)
+                      1
+                      0))
+;;         (+fruit+ 1)
+         (otherwise 0)))
+
 (defun inner-lists-to-bin-tries (lsts acc)
   (if (null lsts)
       (reverse acc)
@@ -167,7 +177,7 @@
   (cons (+ (car c) 1)
         (cdr c)))
 
-(defun wave3 (map front)
+(defun wave3 (map front fruit-ticks)
   #-secd(declare (optimize (debug 3) (safety 3)))
   #-secd(format t "wave3 map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
   (let ((longest-path-len 0)
@@ -214,7 +224,7 @@
                                        (setq longest-path-len len)
                                        (setq longest-path-coords (tuple coord prev-coord)))
                                      0)
-                                 (if (= 1 (pill? val))
+                                 (if (= 1 (pill-or-fruit? val fruit-ticks (* len 127)))
                                      (%restore-path map prev-coord coord)
                                      (labels ((%update-front (front move-func)
                                                 (queue-put (tuple (funcall move-func coord)
@@ -320,7 +330,9 @@
            (map (mark-ghost-ways map lambda-man-coords (world-state-ghosts world-state))))
       #-secd(format t "final map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
       ;;(dbug lambda-man-coords)
-      (let ((result (cons nil (wave3 map (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+) 0) (make-queue))))))
+      (let ((result (cons nil (wave3 map 
+                                     (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+) 0) (make-queue))
+                                     (world-state-fruit world-state)))))
         ;;#+secd(dbug (cons 5555 result))
         result)
       )))

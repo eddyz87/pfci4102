@@ -71,7 +71,7 @@
                   ((eq (first expr) 'label)
                    (second expr))
                   ((eq (first expr) 'val)
-                   (let ((val-inner (ghc-compile-expr (second expr) target available-registers
+                   (let ((val-inner (ghc-compile-expr (second expr) (car available-registers) (cdr available-registers)
                                                       var-access-exprs var-address-exprs)))
                      (if (symbolp val-inner)
                          (list val-inner)
@@ -93,4 +93,5 @@
                   (string-downcase (symbol-name (car instr)))
                   (mapcar #'%param-to-string (cdr instr)))
           (format stream "~A~%"
-                  (string-downcase (symbol-name instr)))))))
+                  (string-downcase (symbol-name instr)))))
+    (format t "Dumped ~A instructions~%" (length body))))
