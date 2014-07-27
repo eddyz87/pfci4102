@@ -189,17 +189,17 @@
 
     (lm-x
      lm-y
+     ghost-index
      ghost-x
      ghost-y
-     delta-x
-     delta-y
+     ghost-direction
      upv
      rightv
      downv
      leftv
      bestv
      bestd
-     ghost-index
+     
 
      eval-cell-ret
      eval-cell-val
@@ -329,61 +329,88 @@
         (:= lm-y y))
       (block 
           (int 3 () (index))
-        (int 5 (index) (x y))
-        (:= ghost-index index)
+        (:= ghost-index index))
+      
+      (block
+          (int 5 (ghost-index) (x y))
         (:= ghost-x x)
         (:= ghost-y y))
-      
+
+      (block
+        (int 6 (ghost-index) (vitality direction))
+        (:= ghost-direction direction))
+        
+
+
       ;; analyze-up
-      (:= eval-direction-ret (label analyze-up-ret))
-      (:= eval-direction-x ghost-x)
-      (:= eval-direction-y (- ghost-y 1))
-      (:= eval-direction-d +up+)
-      (goto eval-direction)
-      analyze-up-ret
-      (:= upv eval-direction-val)
+      (if (= ghost-direction +down+)
+          (:= upv 0)
+        (block
+            (:= eval-direction-ret (label analyze-up-ret))
+          (:= eval-direction-x ghost-x)
+          (:= eval-direction-y (- ghost-y 1))
+          (:= eval-direction-d +up+)
+          (goto eval-direction)
+          analyze-up-ret
+          (:= upv eval-direction-val)
+          (if (> upv 0)
+              (if (> ghost-y lm-y)
+                  (++ upv)
+                (block))
+            (block))))
       
       ;; analyze-right
-      (:= eval-direction-ret (label analyze-right-ret))
-      (:= eval-direction-x (+ ghost-x 1))
-      (:= eval-direction-y ghost-y)
-      (:= eval-direction-d +right+)
-      (goto eval-direction)
-      analyze-right-ret
-      (:= rightv eval-direction-val)
+      (if (= ghost-direction +left+)
+          (:= rightv 0)
+        (block
+            (:= eval-direction-ret (label analyze-right-ret))
+          (:= eval-direction-x (+ ghost-x 1))
+          (:= eval-direction-y ghost-y)
+          (:= eval-direction-d +right+)
+          (goto eval-direction)
+          analyze-right-ret
+          (:= rightv eval-direction-val)
+          (if (> rightv 0)
+              ;; analyze lambda man position
+              (if (< ghost-x lm-x)
+                  (++ rightv)
+                (block)))))
 
       ;; analyze-down
-      (:= eval-direction-ret (label analyze-down-ret))
-      (:= eval-direction-x ghost-x)
-      (:= eval-direction-y (+ ghost-y 1))
-      (:= eval-direction-d +down+)
-      (goto eval-direction)
-      analyze-down-ret
-      (:= downv eval-direction-val)
+      (if (= ghost-direction +up+)
+          (:= downv 0)
+        (block
+            (:= eval-direction-ret (label analyze-down-ret))
+          (:= eval-direction-x ghost-x)
+          (:= eval-direction-y (+ ghost-y 1))
+          (:= eval-direction-d +down+)
+          (goto eval-direction)
+          analyze-down-ret
+          (:= downv eval-direction-val)
+          (if (> downv 0)
+              (if (< ghost-y lm-y)
+                  (++ downv)
+                (block))
+            (block))))
       
       ;; analyze-left
-      (:= eval-direction-ret (label analyze-left-ret))
-      (:= eval-direction-x (- ghost-x 1))
-      (:= eval-direction-y ghost-y)
-      (:= eval-direction-d +left+)
-      (goto eval-direction)
-      analyze-left-ret
-      (:= leftv eval-direction-val)
+      (if (= ghost-direction +right+)
+          (:= leftv 0)
+        (block
+            (:= eval-direction-ret (label analyze-left-ret))
+          (:= eval-direction-x (- ghost-x 1))
+          (:= eval-direction-y ghost-y)
+          (:= eval-direction-d +left+)
+          (goto eval-direction)
+          analyze-left-ret
+          (:= leftv eval-direction-val)
+          ;; analze lambda man position
+          (if (> leftv 0)
+              (if (> ghost-x lm-x)
+                  (++ leftv)
+                (block))
+            (block))))
 
-      ;; analyze lambda man position
-      (if (> ghost-x lm-x)
-          (++ leftv)
-        (block))
-      (if (< ghost-x lm-x)
-          (++ rightv)
-        (block))
-      (if (> ghost-y lm-y)
-          (++ upv)
-        (block))
-      (if (< ghost-y lm-y)
-          (++ downv)
-        (block))
-      
       (if (> upv rightv)
           (block (:= bestv upv) (:= bestd +up+))
         (block (:= bestv rightv) (:= bestd +right+)))
@@ -393,10 +420,9 @@
       (if (> leftv bestv)
           (block (:= bestv leftv) (:= bestd +left+))
         (block))
-      
+
       (block (int 0 (bestd) ()))
-      (halt)
-      )))
+      (halt))))
 
 
           
