@@ -2,6 +2,8 @@
 
 (defvar *label-target* nil)
 
+(declaim (ftype (function (t) t) push-ghc-instruction))
+
 (defun get-op-instr (sym)
   (case sym
     (+ '(add))
@@ -54,19 +56,15 @@
                      (if target
                          (progn
                            (when (and (not (eq tval target)))
-                             (push `(mov ,target ,tval)
-                                   *current-instructions*))
-                           (push `(,@instr ,target ,reg1)
-                                 *current-instructions*)
+                             (push-ghc-instruction `(mov ,target ,tval)))
+                           (push-ghc-instruction `(,@instr ,target ,reg1))
                            target)
                          (progn
-                           (push `(,@instr ,tval ,reg1)
-                                 *current-instructions*)
+                           (push-ghc-instruction `(,@instr ,tval ,reg1))
                            tval))))
                 (1 (let* ((tval (ghc-compile-expr (second expr) (car available-registers) (cdr available-registers)
                                                   var-access-exprs var-address-exprs)))
-                     (push `(,@instr ,tval)
-                           *current-instructions*)
+                     (push-ghc-instruction `(,@instr ,tval))
                      tval))))
             (cond ((eq (first expr) 'address)
                    (gethash (second expr) var-address-exprs))
@@ -78,8 +76,7 @@
                      (if (symbolp val-inner)
                          (list val-inner)
                          (progn
-                           (push `(mov ,target ,val-inner)
-                                 *current-instructions*)
+                           (push-ghc-instruction `(mov ,target ,val-inner))
                            target)))))))))
 
 (defun ghc-asm-dump (body stream)
@@ -91,6 +88,9 @@
                    ((listp par)
                     (format nil "[~A]" (%param-to-string (first par)))))))
     (dolist (instr body)
-      (format stream "~A ~{~A~^,~}~%"
-              (string-downcase (symbol-name (car instr)))
-              (mapcar #'%param-to-string (cdr instr))))))
+      (if (listp instr)
+          (format stream "~A ~{~A~^,~}~%"
+                  (string-downcase (symbol-name (car instr)))
+                  (mapcar #'%param-to-string (cdr instr)))
+          (format stream "~A~%"
+                  (string-downcase (symbol-name instr)))))))

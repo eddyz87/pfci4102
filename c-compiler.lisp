@@ -46,16 +46,56 @@
 
 (defvar *func-ret-label-vars* (make-hash-table :test #'eq))
 (defvar *func-par-vars* (make-hash-table :test #'eq))
+(defvar *cur-func-ret-var* nil)
+
+(defvar *peephole-optimizations* t)
+
+(defun push-ghc-instruction (instr)
+  (labels ((%same-loc-move-instr (instr)
+             (optima:match instr
+               ((list 'mov a b)
+                (equal a b))
+               (otherwise nil)))
+           (%find-top-instr ()
+             (find-if #'listp *current-instructions*))
+           (%remove-top-instr ()
+             (setf *current-instructions* (remove-if #'listp *current-instructions* :count 1))
+             (%adjust-after-top-instr))
+           (%adjust-after-top-instr ()
+             (labels ((%inner-remove (lst labels)
+                        (if (null lst)
+                            labels
+                            (if (symbolp (car lst))
+                                (%inner-remove (cdr lst) (cons (car lst) labels))
+                                (if (%is-goto (car lst) labels)
+                                    (%inner-remove (cdr lst) labels)
+                                    (append labels lst))))))
+               (setf *current-instructions* (%inner-remove *current-instructions* nil))))
+           (%is-goto (instr labels)
+             (optima:match instr
+               ((list 'mov 'pc lbl)
+                (member lbl labels :test #'eq))
+               (otherwise nil))))
+    (if *peephole-optimizations*
+        (unless (%same-loc-move-instr instr)
+          (let ((top-instr (%find-top-instr)))
+            (when (equal top-instr instr)
+              (%remove-top-instr))
+            (when (and (symbolp instr)
+                       (%is-goto top-instr (list instr)))
+              (%remove-top-instr))
+            (push instr *current-instructions*)))
+        (push instr *current-instructions*))))
 
 (defun handle-stmt (stmt)
   (optima:match 
    stmt
    ((guard label (symbolp label))
-    (push label *current-instructions*))
+    (push-ghc-instruction label))
    ((list* 'block stmts)
     (parse-block stmts))
    ((list 'goto label)
-    (push `(mov pc ,label) *current-instructions*))
+    (push-ghc-instruction `(mov pc ,label)))
    ((list 'if cond then-stmt else-stmt)
     (let ((*label-target* (make-label))
           (end-label (make-label)))
@@ -75,7 +115,7 @@
             (push decl *locals*)
             (setf *available-registers* (remove local *available-registers*)))))
    ((list 'halt)
-    (push `(hlt) *current-instructions*))
+    (push-ghc-instruction `(hlt)))
    ((list 'int e in-exprs out-vars)
     (setf *available-registers* (remove 'a (remove 'b *available-registers*)))
     (setf out-vars (adjust-out-vars out-vars))
@@ -87,14 +127,15 @@
           for out-var in out-vars do
           (handle-stmt `(:= ,out-var ,in-expr)))
     (let ((val (ghc-compile-expr e (car *available-registers*) (cdr *available-registers*) *var-access-exprs* *var-address-exprs*)))
-      (push `(int ,val) *current-instructions*)))
+      (push-ghc-instruction `(int ,val))))
    ((list* 'func label in-params out-params body)
     (let ((ret-label (gensym "ret")))
       (parse-global-defs (cons ret-label (append in-params out-params)))
       (setf (gethash label *func-par-vars*) in-params)
       (setf (gethash label *func-ret-label-vars*) ret-label)
       (handle-stmt label)
-      (handle-stmt `(block ,@body))
+      (let ((*cur-func-ret-var* ret-label))
+        (handle-stmt `(block ,@body)))
       (handle-stmt `(:= pc ,ret-label))))
    ((list* 'call func params)
     (let ((vars (gethash func *func-par-vars*))
@@ -106,6 +147,8 @@
       (handle-stmt `(:= ,ret-label-var (label ,ret-label)))
       (handle-stmt `(goto ,func))
       (handle-stmt ret-label)))
+   ((list 'return)
+    (handle-stmt `(:= pc ,*cur-func-ret-var*)))
    (e
     (ghc-compile-expr e nil *available-registers* *var-access-exprs* *var-address-exprs*))
    ))
@@ -124,17 +167,19 @@
         (*func-ret-label-vars* (make-hash-table :test #'eq))
         (*func-par-vars* (make-hash-table :test #'eq))
         (*available-registers* (list 'a 'b 'c 'd 'e 'f 'g 'h))
-        (*current-var-address* 0))
+        (*current-var-address* 0)
+        (*cur-func-ret-var* nil))
 
     (push 'pc (gethash 'pc *var-access-exprs*))
     (parse-global-consts (first program))
     (parse-global-defs (second program))
     (parse-block (third program))))
 
-(defun full-c-compliation (program)
+(defun full-c-compliation (program &key (transform-labels t))
   (let ((*current-instructions* nil))
     (compile-c-program program)
-    (ghc-asm-dump (transform-labels (reverse *current-instructions*)) t)))
+    (ghc-asm-dump (funcall (if transform-labels #'transform-labels #'identity)
+                           (reverse *current-instructions*)) t)))
 
 (defparameter *ghost-prog1*
  '(((+up+ 0)
@@ -147,10 +192,12 @@
    (var1
     ret-addr)
    
-   (block
+   (
        (goto start)
        (func calc1 (c1x c1y) (c1r)
-             (:= c1r (+ c1x c1y)))
+             (if (> c1x c1y)
+                 (return)
+                 (:= c1r (+ c1x c1y))))
      (block
          start
        ;; (block
@@ -179,6 +226,7 @@
        ;;              (int 0 (dirv) ())))
        ;;   (halt))
        (block
+           (:= c1x 5)
          (call calc1 5 10)
          (:= var1 c1r)
          (call calc1 20 30)
