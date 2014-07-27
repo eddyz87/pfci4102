@@ -21,7 +21,9 @@
 
 (define-client-constant +lambda-man+ 100)
 (define-client-constant +no-move+ 101)
+(define-client-constant +frighten-ghost+ 103)
 
+(define-client-constant +frighten-mode-reserve-ticks+ 5)
 (define-client-constant +ghost-stay-away-distance+ 4)
 
 (define-client-macro define-tuple (name &rest fields)
@@ -93,15 +95,19 @@
 ;;         (+fruit+ 1)
          (otherwise 0)))
 
-(defun pill-or-fruit? (val fruit-ticks ticks-to-go)
-  (mcase val
-         (+pill+ 1)
-         (+power-pill+ 1)
-         (+fruit+ (if (> fruit-ticks ticks-to-go)
-                      1
-                      0))
-;;         (+fruit+ 1)
-         (otherwise 0)))
+(defun pill-or-fruit? (val fruit-ticks ticks-to-go ghost-hunter)
+  (if ghost-hunter
+      (if (= val +frighten-ghost+)
+          1
+          0)
+      (mcase val
+             (+pill+ 1)
+             (+power-pill+ 1)
+             (+fruit+ (if (> fruit-ticks ticks-to-go)
+                          1
+                          0))
+             ;;         (+fruit+ 1)
+             (otherwise 0))))
 
 (defun inner-lists-to-bin-tries (lsts acc)
   (if (null lsts)
@@ -177,11 +183,12 @@
   (cons (+ (car c) 1)
         (cdr c)))
 
-(defun wave3 (map front fruit-ticks)
+(defun wave3 (map front fruit-ticks frighten-ticks)
   #-secd(declare (optimize (debug 3) (safety 3)))
   #-secd(format t "wave3 map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
   (let ((longest-path-len 0)
-        (longest-path-coords 0))
+        (longest-path-coords 0)
+        (ghost-hunter (> frighten-ticks (* 137 +frighten-mode-reserve-ticks+))))
     (labels ((%decode-move (prev-coord coord)
                (let ((px (car prev-coord))
                      (py (cdr prev-coord))
@@ -224,7 +231,7 @@
                                        (setq longest-path-len len)
                                        (setq longest-path-coords (tuple coord prev-coord)))
                                      0)
-                                 (if (= 1 (pill-or-fruit? val fruit-ticks (* len 127)))
+                                 (if (= 1 (pill-or-fruit? val fruit-ticks (* len 127) ghost-hunter))
                                      (%restore-path map prev-coord coord)
                                      (labels ((%update-front (front move-func)
                                                 (queue-put (tuple (funcall move-func coord)
@@ -315,9 +322,10 @@
                  (let ((g (car ghosts)))
                    ;;#+secd(dbug g)
                    (%mark
-                    (if (= +vitality-standard+ (ghost-vitality g))
-                        (mark-way map lm-coord (ghost-coord g) (ghost-direction g))
-                        map)
+                    (mcase (ghost-vitality g)
+                           (+vitality-standard+ (mark-way map lm-coord (ghost-coord g) (ghost-direction g)))
+                           (+vitality-fright+ (put-map-value map (ghost-coord g) +frighten-ghost+))
+                           (otherwise map))
                     (cdr ghosts))))))
     (%mark map ghosts)))
 
@@ -332,7 +340,8 @@
       ;;(dbug lambda-man-coords)
       (let ((result (cons nil (wave3 map 
                                      (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+) 0) (make-queue))
-                                     (world-state-fruit world-state)))))
+                                     (world-state-fruit world-state)
+                                     (lambda-man-vitality lambda-man)))))
         ;;#+secd(dbug (cons 5555 result))
         result)
       )))
