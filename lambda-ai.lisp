@@ -22,7 +22,7 @@
 (define-client-constant +lambda-man+ 100)
 (define-client-constant +no-move+ 101)
 
-(define-client-constant +ghost-stay-away-distance+ 3)
+(define-client-constant +ghost-stay-away-distance+ 4)
 
 (define-client-macro define-tuple (name &rest fields)
   (labels ((%gen (fields top-fields)
@@ -252,26 +252,32 @@
                   #-secd(format t "wave2: dir = ~A c = ~A nc = ~A nv = ~A free? = ~A len = ~A~%"
                                 direction coord next-coord next-value (free? next-value) length1)
                   (if (> length1 0)
-                      (if (= 1 (free? next-value))
-                          (progn
-                            #-secd (format t ">> taking direction, length = ~A~%" length1)
-                            (wave2 map (queue-put (tuple (- length1 1) next-coord direction)
-                                                  front)))
-                          (labels ((%update-front (front direction)
-                                     (let* ((next-coord1 (move-coord coord direction))
-                                            (next-value1 (get-map-value map next-coord1)))
-                                       #-secd (format t "trying direction ~A nc = ~A nv = ~A free? = ~A~%"
-                                                      direction next-coord1 next-value1 (free? next-value1))
-                                       (if (= 1 (free? next-value1))
-                                           (queue-put (tuple (- length1 1) next-coord1 direction)
-                                                      front)
-                                           front))))
-                            #-secd(format t "<< bad direction~%")
-                            (wave2 map
-                                   (%update-front
-                                    (%update-front
-                                     (%update-front
-                                      (%update-front front +up+) +down+) +left+) +right+))))
+                      ;; (if (= 1 (free? next-value))
+                      ;;     (progn
+                      ;;       #-secd (format t ">> taking direction, length = ~A~%" length1)
+                      ;;       (wave2 map (queue-put (tuple (- length1 1) next-coord direction)
+                      ;;                             front))))
+                      ;; (let* ((moves (mcase direction
+                      ;;                      (+up+      (tuple (tuple +down+ +left+ +right+) +up+))
+                      ;;                      (+down+    (tuple (tuple +up+   +left+ +right+) +down+))
+                      ;;                      (+left+    (tuple (tuple +down+ +up+   +right+) +left+))
+                      ;;                      (otherwise (tuple (tuple +down+ +left+ +up+)    +right+))
+                      ;;                     ))))
+                      (labels ((%update-front (front direction)
+                                 (let* ((next-coord1 (move-coord coord direction))
+                                        (next-value1 (get-map-value map next-coord1)))
+                                   #-secd (format t "trying direction ~A nc = ~A nv = ~A free? = ~A~%"
+                                                  direction next-coord1 next-value1 (free? next-value1))
+                                   (if (= 1 (free? next-value1))
+                                       (queue-put (tuple (- length1 1) next-coord1 direction)
+                                                  front)
+                                       front))))
+                        ;;#-secd(format t "<< bad direction~%")
+                        (wave2 map
+                               (%update-front
+                                (%update-front
+                                 (%update-front
+                                  (%update-front front +up+) +down+) +left+) +right+)))
                       map))))))
 
 (defun mark-way (map lm-coord coord direction)
