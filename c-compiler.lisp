@@ -187,41 +187,93 @@
      (+down+ 2)
      (+left+ 3))
 
-    ()
+    (lm-x
+     lm-y
+     ghost-x
+     ghost-y
+     delta-x
+     delta-y
+     upv
+     rightv
+     downv
+     leftv
+     bestv
+     bestd
+     ghost-index)
 
     (block
-        (block
-            (locals ghost-x ghost-y)
-          (block 
-              (int 3 () (index))
-            (int 5 (index) (x y))
-            (:= ghost-x x)
-            (:= ghost-y y))
-          
-          ;; analyze-top
-          (int 7 (ghost-x (- ghost-y 1)) (content))
-          (if (> content 0)
-              (block (int 0 (+up+) ()) (halt))
-            (block))
-          
-          ;; analyze-right
-          (int 7 ((+ ghost-x 1) ghost-y) (content))
-          (if (> content 0)
-              (block (int 0 (+right+) ()) (halt))
-            (block))
-          
-          ;; analyze-down
-          (int 7 (ghost-x (+ ghost-y 1)) (content))
-          (if (> content 0)
-              (block (int 0 (+down+) ()) (halt))
-            (block))
-          
-          ;; analyze-left
-          (int 7 ((- ghost-x 1) ghost-y) (content))
-          (if (> content 0)
-              (block (int 0 (+left+) ()) (halt))
-            (block))
-          (halt)))))
+        ;; update values
+        (:= upv 0)
+      (:= rightv 0)
+      (:= downv 0)
+      (:= leftv 0)
+      
+      (block
+          (int 1 () (x y))
+        (:= lm-x x)
+        (:= lm-y y))
+      (block 
+          (int 3 () (index))
+        (int 5 (index) (x y))
+        (:= ghost-index index)
+        (:= ghost-x x)
+        (:= ghost-y y))
+      
+      ;; analyze-top
+      (int 7 (ghost-x (- ghost-y 1)) (content))
+      (if (> content 0)
+          (++ upv)
+        (block))
+      
+      ;; analyze-right
+      (int 7 ((+ ghost-x 1) ghost-y) (content))
+      (if (> content 0)
+          (++ rightv)
+        (block))
+      
+      ;; analyze-down
+      (int 7 (ghost-x (+ ghost-y 1)) (content))
+      (if (> content 0)
+          (++ downv)
+        (block))
+      
+      ;; analyze-left
+      (int 7 ((- ghost-x 1) ghost-y) (content))
+      (if (> content 0)
+          (++ leftv)
+        (block))
+
+      ;; analyze lambda man position
+      (if (> ghost-x lm-x)
+          (++ leftv)
+        (block))
+      (if (< ghost-x lm-x)
+          (++ rightv)
+        (block))
+      (if (> ghost-y lm-y)
+          (++ upv)
+        (block))
+      (if (< ghost-y lm-y)
+          (++ downv)
+        (block))
+      
+      (if (> upv rightv)
+          (block (:= bestv upv) (:= bestd +up+))
+        (block (:= bestv rightv) (:= bestd +right+)))
+      (if (> downv bestv)
+          (block (:= bestv downv) (:= bestd +down+))
+        (block))
+      (if (> leftv bestv)
+          (block (:= bestv leftv) (:= bestd +left+))
+        (block))
+
+      (block (int 8 (ghost-index bestd) ()))
+      (block (int 8 (upv rightv) ()))
+      (block (int 8 (downv leftv) ()))
+
+      (block (int 0 (bestd) ()))
+      (halt)
+      )))
 
 
           
