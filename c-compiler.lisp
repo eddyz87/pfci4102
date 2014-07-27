@@ -413,3 +413,216 @@
          (call calc1 20 30)
          (+= var1 c1r))
      ))))
+
+(defparameter *ghost-prog2*
+ '(((+up+ 0)
+    (+right+ 1)
+    (+down+ 2)
+    (+left+ 3)
+    
+    (+wall+ 0)
+
+    (+seek+ 0)
+    (+follow+ 1)
+    (+lookahead-num+ 20))
+   
+   (state
+    follow-ind
+    last-known-x
+    last-known-y
+    last-x
+    last-y
+    (tdirs 32))
+   
+   (
+    (if (= state +seek+)
+        (goto seek-prog)
+        (if (= state +follow+)
+            (goto follow-prog)
+            (goto seek-prog)))
+    
+    (func move-dir (mdx mdy mdir) ()
+     (if (= mdir +up+)
+         (-- mdy)
+         (if (= mdir +down+)
+             (++ mdy)
+             (block)))
+     (if (= mdir +right+)
+         (++ mdx)
+         (if (= mdir +left+)
+             (-- mdx)
+             (block))))
+
+    (func nextdir (nx ny ndir)
+     (locals ind delta)
+     (:= ind 3)
+     (:= delta 0)
+     nl1
+     (:= ndir (& (+ ndir delta) 3))
+     (call move-dir nx ny ndir)
+     ;; (block
+     ;;     (int 8 (mdx mdy) ()))
+     ;; (block
+     ;;     (int 8 (ndir) ()))
+     (block
+         (int 7 (mdx mdy) (cont))
+       ;; (int 8 (cont) ())
+       (if (= cont 0)
+           (block)
+           (block
+               ;;(int 8 (222) ())
+               (return))))
+     (++ delta)
+     (if (= ind 0)
+         (block)
+         (block
+             (-- ind)
+           (goto nl1))))
+
+    (func traverse-from (tx ty tlmx tlmy tdir tnum) (tfound tind)
+     (locals ind)
+     (-- tnum)
+     (:= ind 0)
+     (:= tfound 0)
+     ;; (block
+     ;;     (int 8 (tlmx tlmy) ()))
+     tl
+     (:= tind ind)
+     (call nextdir tx ty tdir)
+     (:= ind tind)
+     ;; (block
+     ;;     (int 8 (nx ny) ()))
+     ;; (block
+     ;;     (int 8 (ndir) ()))
+     (:= (val (+ (address tdirs) ind)) ndir)
+     (:= tx mdx)
+     (:= ty mdy)
+     (:= tdir ndir)
+     (if (= tx tlmx)
+         (if (= ty tlmy)
+             (block
+                 (:= tfound 1)
+               (:= tnum (+ ind 1))
+               (return))
+             (block))
+         (block))
+     (if (< ind tnum)
+         (block
+             (++ ind)
+           (goto tl))
+         (block)))
+
+    (func update-last-known (fx fy)
+     (locals ind dir)
+     (:= ind follow-ind)
+     fl
+     (:= dir (val (+ (address tdirs) ind)))
+     (call move-dir fx fy dir)
+     (if (= mdx tlmx)
+         (if (= mdy tlmy)
+             (block
+                 (:= last-known-x mdx)
+                 (:= last-known-y mdy)
+                 (:= tnum (+ ind 1))
+                 (return))
+             (block))
+         (block))
+     (:= fx mdx)
+     (:= fy mdy)
+     (if (< ind tnum)
+         (block
+             (++ ind)
+           (goto fl))
+         (block)))
+
+    (func seek-after-kill () (sak-moved)
+     ;; (block (int 8 (tx ty) ()))
+     ;; (block (int 8 (last-x last-y) ()))
+     (:= sak-moved 0)
+     (if (= tx (+ last-x 1))
+         (:= sak-moved 1)
+         (if (= tx last-x)
+             (block)
+             (if (= tx (- last-x 1))
+                 (:= sak-moved 1)
+                 (:= sak-moved 2))))
+     (if (= ty (+ last-y 1))
+         (++ sak-moved)
+         (if (= ty last-y)
+             (block)
+             (if (= ty (- last-y 1))
+                 (++ sak-moved)
+                 (+= sak-moved 2))))
+     (:= last-x tx)
+     (:= last-y ty)
+     (if (> sak-moved 1)
+         (block
+             (:= state +seek+)
+           (goto seek-prog))
+         (block)))
+
+    seek-prog
+    ;; (block
+    ;;     (int 8 (111) ()))
+    (block
+        (int 3 () (index))
+      (int 5 (index) (x y))
+      (:= tx x)
+      (:= ty y)
+      
+      (int 3 () (index))
+      (int 6 (index) (vit dir))
+      (:= tdir dir)
+
+      (int 1 () (x y))
+      (:= tlmx x)
+      (:= tlmy y))
+    (call seek-after-kill)
+    (call traverse-from tx ty tlmx tlmy tdir +lookahead-num+)
+      
+    (if (= tfound 1)
+        (block
+            ;; (block
+            ;;     (int 8 (tnum) ()))
+          (:= state +follow+)
+          (:= last-known-x tlmx)
+          (:= last-known-y tlmy)
+          (goto follow-prog))
+        (halt))
+    follow-prog
+    ;; (block
+    ;;     (int 8 (222) ()))
+    (block
+        (int 7 () (x y))
+      (:= tlmx x)
+      (:= tlmy y))
+    (block
+        (int 3 () (index))
+      (int 5 (index) (x y))
+      (:= tx x)
+      (:= ty y))
+    (call seek-after-kill)
+    
+    (block
+        (int 3 () (index))
+      (int 5 (index) (x y))
+      (update-last-known x y))
+    ;; (block
+    ;;     (int 8 (last-known-x last-known-y) ()))
+    ;; (block
+    ;;     (int 8 (follow-ind tnum) ()))
+    (if (= follow-ind tnum)
+        (goto seek-prog)
+        (if (> follow-ind tnum)
+            (block
+                (:= state +seek+)
+                (goto seek-prog))
+            (block)))
+    (block
+        (locals dir)
+      (:= dir (val (+ (address tdirs) follow-ind)))
+      (block
+          (int 0 (dir)))
+      (++ follow-ind)
+      (halt))
+    )))
