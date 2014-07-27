@@ -476,7 +476,7 @@
 
     (+seek+ 0)
     (+follow+ 1)
-    (+lookahead-num+ 20))
+    (+lookahead-num+ 10))
    
    (state
     follow-ind
@@ -484,9 +484,29 @@
     last-known-y
     last-x
     last-y
-    (tdirs 32))
+    (tdirs 32)
+    ;; Index for delta for nextdir:
+    delta-index
+    delta-inited
+    deltas
+    deltas1
+    deltas2
+    deltas3
+    deltas4)
    
    (
+    (if (= delta-inited 0)
+        (block
+            ;; Regular - same dir, right, left, back
+            (:= deltas1 #b11100100)
+          (:= deltas4 #b11100100)
+          ;; Right, left, same dir, back
+          (:= deltas2 #b10011001)
+          ;; Left, right, same dir, back
+          (:= deltas3 #b10111011)
+          (:= delta-inited 1)
+          (:= deltas deltas1))
+        (block))
     (if (= state +seek+)
         (goto seek-prog)
         (if (= state +follow+)
@@ -508,9 +528,9 @@
     (func nextdir (nx ny ndir)
      (locals ind delta)
      (:= ind 3)
-     (:= delta 0)
+     (:= delta deltas)
      nl1
-     (:= ndir (& (+ ndir delta) 3))
+     (:= ndir (& (+ ndir (& delta 3)) 3))
      (call move-dir nx ny ndir)
      ;; (block
      ;;     (int 8 (mdx mdy) ()))
@@ -524,7 +544,7 @@
            (block
                ;;(int 8 (222) ())
                (return))))
-     (++ delta)
+     (/= delta 4)
      (if (= ind 0)
          (block)
          (block
@@ -631,11 +651,13 @@
       (:= tlmy y))
     (call seek-after-kill)
     (call traverse-from tx ty tlmx tlmy tdir +lookahead-num+)
-      
+
+    (++ delta-index)
+    (&= delta-index 3)
+    (:= deltas (val (+ (address deltas1) delta-index)))
+
     (if (= tfound 1)
         (block
-            ;; (block
-            ;;     (int 8 (tnum) ()))
           (:= state +follow+)
           (:= last-known-x tlmx)
           (:= last-known-y tlmy)
@@ -664,17 +686,19 @@
     ;; (block
     ;;     (int 8 (follow-ind tnum) ()))
     (if (= follow-ind tnum)
-        (goto seek-prog)
+        (block
+            (:= state +seek+)
+            (goto seek-prog))
         (if (> follow-ind tnum)
             (block
-                (:= state +seek+)
-                (goto seek-prog))
+              (:= state +seek+)
+              (goto seek-prog))
             (block)))
     (block
         (locals dir)
       (:= dir (val (+ (address tdirs) follow-ind)))
       (block
-          (int 0 (dir)))
+          (int 0 (dir) ()))
       (++ follow-ind)
       (halt))
     )))
