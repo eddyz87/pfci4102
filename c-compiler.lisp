@@ -650,7 +650,7 @@
 
     (+seek+ 0)
     (+follow+ 1)
-    (+lookahead-num+ 12)
+    (+lookahead-num+ 8)
     (+tmask+ 31))
    
    (state
@@ -668,7 +668,8 @@
     deltas2
     deltas3
     deltas4
-    rndval)
+    
+    trydir)
    
    (
     (if (= delta-inited 0)
@@ -681,7 +682,6 @@
           ;; Left, right, same dir, back
           (:= deltas3 #b10111011)
           (:= delta-inited 1)
-          (:= rndval 13)
           (:= deltas deltas1))
         (block))
     (goto-if seek-prog (= state +seek+))
@@ -702,10 +702,10 @@
          (-- mdx)
          (block)))
 
-    (func nextdir (nx ny ndir) ()
+    (func nextdir (nx ny ndir nddeltas) ()
      (locals ind delta)
      (:= ind 3)
-     (:= delta deltas)
+     (:= delta nddeltas)
      nl1
      (:= ndir (& (+ ndir (& delta 3)) 3))
      (call move-dir nx ny ndir)
@@ -737,7 +737,7 @@
      ;;     (int 8 (tlmx tlmy) ()))
      tl
      (:= tind ind)
-     (call nextdir tx ty tdir)
+     (call nextdir tx ty tdir deltas)
      (:= ind tind)
      ;; (block
      ;;     (int 8 (nx ny) ()))
@@ -885,10 +885,10 @@
           (goto follow-prog))
         (block))
     
-    (:= rndval (* rndval 17))
-    (+= rndval 131)
+    (call nextdir tx ty tdir deltas2)
     (block
-        (int 0 ((& rndval 3)) ()))
+        (int 0 (ndir) ()))
+    
     
     follow-prog
     ;; (block
