@@ -629,7 +629,9 @@
      (:= last-y ty)
      (if (> sak-moved 1)
          (block
-             (:= state +seek+)
+             (block (int 8 (111) ())
+              (int 8 (tx ty) ()))
+           (:= state +seek+)
            (goto seek-prog))
          (block)))
 
@@ -658,7 +660,10 @@
 
     (if (= tfound 1)
         (block
+            (block (int 8 (222) ())
+              (int 8 (tx ty) ()))
           (:= state +follow+)
+          (:= follow-ind 0)
           (:= last-known-x tlmx)
           (:= last-known-y tlmy)
           (goto follow-prog))
@@ -685,15 +690,13 @@
     ;;     (int 8 (last-known-x last-known-y) ()))
     ;; (block
     ;;     (int 8 (follow-ind tnum) ()))
-    (if (= follow-ind tnum)
+    (if (< follow-ind tnum)
+        (block)
         (block
+            (block (int 8 (66) ())
+              (int 8 (tx ty) ()))
             (:= state +seek+)
-            (goto seek-prog))
-        (if (> follow-ind tnum)
-            (block
-              (:= state +seek+)
-              (goto seek-prog))
-            (block)))
+          (goto seek-prog)))
     (block
         (locals dir)
       (:= dir (val (+ (address tdirs) follow-ind)))
