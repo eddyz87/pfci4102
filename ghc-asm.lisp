@@ -93,4 +93,5 @@
                   (string-downcase (symbol-name (car instr)))
                   (mapcar #'%param-to-string (cdr instr)))
           (format stream "~A~%"
-                  (string-downcase (symbol-name instr)))))))
+                  (string-downcase (symbol-name instr)))))
+    (format t "Dumped ~A instructions~%" (length body))))
