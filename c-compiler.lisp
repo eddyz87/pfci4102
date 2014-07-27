@@ -199,15 +199,130 @@
      leftv
      bestv
      bestd
-     ghost-index)
+     ghost-index
+
+     eval-cell-ret
+     eval-cell-val
+     eval-cell-x
+     eval-cell-y
+
+     eval-direction-ret
+     eval-direction-val
+     eval-direction-x
+     eval-direction-y
+     eval-direction-d)
 
     (block
-        ;; update values
-        (:= upv 0)
-      (:= rightv 0)
-      (:= downv 0)
-      (:= leftv 0)
-      
+        (goto main)
+
+
+
+        eval-cell
+      (block
+          (:= eval-cell-val 0)
+          (block 
+              (int 7 (eval-cell-x eval-cell-y) (content))
+            (if (= content 0)
+                (:= pc eval-cell-ret)
+              ;; analyze surrounded cells: up, right, down, left and return
+              (block
+                  (block (int 7 (eval-cell-x (- eval-cell-y 1)) (content))
+                    (if (> content 0) (++ eval-cell-val) (block)))
+                (block (int 7 ((+ eval-cell-x 1) eval-cell-y) (content))
+                  (if (> content 0) (++ eval-cell-val) (block)))
+                (block (int 7 (eval-cell-x (+ eval-cell-y 1)) (content))
+                  (if (> content 0) (++ eval-cell-val) (block)))
+                (block (int 7 ((- eval-cell-x 1) eval-cell-y) (content))
+                  (if (> content 0) (++ eval-cell-val) (block)))
+                (:= pc eval-cell-ret)))))
+
+      eval-direction
+      (block
+          (:= eval-direction-val 0)
+        ;; UP
+        (if (= eval-direction-d +up+)
+            (block
+                eval-direction-loop-up
+              ;; eval current cell
+              (:= eval-cell-ret (label eval-cell-ret-up))
+              (:= eval-cell-x eval-direction-x)
+              (:= eval-cell-y eval-direction-y)
+              (goto eval-cell)
+              eval-cell-ret-up
+              (if (= eval-cell-val 0)
+                  ;; it's deadend, so lets return
+                  (:= pc eval-direction-ret)
+                ;; lets continue
+                (block
+                    ;; we don't need to calc prev position
+                    (+= eval-direction-val (- eval-cell-val 1))
+                  ;; move next
+                  (-= eval-direction-y 1)
+                  (goto eval-direction-loop-up))))
+          
+          ;; RIGHT
+          (if (= eval-direction-d +right+)
+              (block
+                  eval-direction-loop-right
+                ;; eval current cell
+                (:= eval-cell-ret (label eval-cell-ret-right))
+                (:= eval-cell-x eval-direction-x)
+                (:= eval-cell-y eval-direction-y)
+                (goto eval-cell)
+                eval-cell-ret-right
+                (if (= eval-cell-val 0)
+                    ;; it's deadend, so lets return
+                    (:= pc eval-direction-ret)
+                  ;; lets cont
+                  (block
+                      ;; we dont neet to calc prev position
+                      (+= eval-direction-val (- eval-cell-val 1))
+                    ;; move next
+                    (+= eval-direction-x 1)
+                    (goto eval-direction-loop-right))))
+            
+            ;; DOWN
+            (if (= eval-direction-d +down+)
+                (block
+                    eval-direction-loop-down
+                  ;; eval current cell
+                  (:= eval-cell-ret (label eval-cell-ret-down))
+                  (:= eval-cell-x eval-direction-x)
+                  (:= eval-cell-y eval-direction-y)
+                  (goto eval-cell)
+                  eval-cell-ret-down
+                  (if (= eval-cell-val 0)
+                      ;; it's deadend, so lets return
+                      (:= pc eval-direction-ret)
+                    ;; lets cont
+                    (block
+                        ;; we dont need to calc prev position
+                        (+= eval-direction-val (- eval-cell-val 1))
+                      ;; move next
+                      (+= eval-direction-y 1)
+                      (goto eval-direction-loop-down))))
+              
+              ;; LEFT
+              (block 
+                  eval-direction-loop-left
+                ;; eval current cell
+                (:= eval-cell-ret (label eval-cell-ret-left))
+                (:= eval-cell-x eval-direction-x)
+                (:= eval-cell-y eval-direction-y)
+                (goto eval-cell)
+                eval-cell-ret-left
+                (if (= eval-cell-val 0)
+                    ;; it's deadend, so lets return
+                    (:= pc eval-direction-ret)
+                  ;; lets cont
+                  (block
+                      ;; we dont need to calc prev position
+                      (+= eval-direction-val (- eval-cell-val 1))
+                    ;; move next
+                    (-= eval-direction-x 1)
+                    (goto eval-direction-loop-left))))))))
+
+      main
       (block
           (int 1 () (x y))
         (:= lm-x x)
@@ -219,29 +334,41 @@
         (:= ghost-x x)
         (:= ghost-y y))
       
-      ;; analyze-top
-      (int 7 (ghost-x (- ghost-y 1)) (content))
-      (if (> content 0)
-          (++ upv)
-        (block))
+      ;; analyze-up
+      (:= eval-direction-ret (label analyze-up-ret))
+      (:= eval-direction-x ghost-x)
+      (:= eval-direction-y (- ghost-y 1))
+      (:= eval-direction-d +up+)
+      (goto eval-direction)
+      analyze-up-ret
+      (:= upv eval-direction-val)
       
       ;; analyze-right
-      (int 7 ((+ ghost-x 1) ghost-y) (content))
-      (if (> content 0)
-          (++ rightv)
-        (block))
-      
+      (:= eval-direction-ret (label analyze-right-ret))
+      (:= eval-direction-x (+ ghost-x 1))
+      (:= eval-direction-y ghost-y)
+      (:= eval-direction-d +right+)
+      (goto eval-direction)
+      analyze-right-ret
+      (:= rightv eval-direction-val)
+
       ;; analyze-down
-      (int 7 (ghost-x (+ ghost-y 1)) (content))
-      (if (> content 0)
-          (++ downv)
-        (block))
+      (:= eval-direction-ret (label analyze-down-ret))
+      (:= eval-direction-x ghost-x)
+      (:= eval-direction-y (+ ghost-y 1))
+      (:= eval-direction-d +down+)
+      (goto eval-direction)
+      analyze-down-ret
+      (:= downv eval-direction-val)
       
       ;; analyze-left
-      (int 7 ((- ghost-x 1) ghost-y) (content))
-      (if (> content 0)
-          (++ leftv)
-        (block))
+      (:= eval-direction-ret (label analyze-left-ret))
+      (:= eval-direction-x (- ghost-x 1))
+      (:= eval-direction-y ghost-y)
+      (:= eval-direction-d +left+)
+      (goto eval-direction)
+      analyze-left-ret
+      (:= leftv eval-direction-val)
 
       ;; analyze lambda man position
       (if (> ghost-x lm-x)
@@ -266,11 +393,7 @@
       (if (> leftv bestv)
           (block (:= bestv leftv) (:= bestd +left+))
         (block))
-
-      (block (int 8 (ghost-index bestd) ()))
-      (block (int 8 (upv rightv) ()))
-      (block (int 8 (downv leftv) ()))
-
+      
       (block (int 0 (bestd) ()))
       (halt)
       )))
