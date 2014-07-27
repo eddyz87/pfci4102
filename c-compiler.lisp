@@ -181,6 +181,187 @@
     (ghc-asm-dump (funcall (if transform-labels #'transform-labels #'identity)
                            (reverse *current-instructions*)) t)))
 
+(defparameter *ghost-prog-greedy*
+  '(((+up+ 0)
+     (+right+ 1)
+     (+down+ 2)
+     (+left+ 3))
+
+    ()
+
+    (block
+        (block
+            (locals ghost-x ghost-y)
+          (block 
+              (int 3 () (index))
+            (int 5 (index) (x y))
+            (:= ghost-x x)
+            (:= ghost-y y))
+          
+          ;; analyze-top
+          (int 7 (ghost-x (- ghost-y 1)) (content))
+          (if (> content 0)
+              (block (int 0 (+up+) ()) (halt))
+            (block))
+          
+          ;; analyze-right
+          (int 7 ((+ ghost-x 1) ghost-y) (content))
+          (if (> content 0)
+              (block (int 0 (+right+) ()) (halt))
+            (block))
+          
+          ;; analyze-down
+          (int 7 (ghost-x (+ ghost-y 1)) (content))
+          (if (> content 0)
+              (block (int 0 (+down+) ()) (halt))
+            (block))
+          
+          ;; analyze-left
+          (int 7 ((- ghost-x 1) ghost-y) (content))
+          (if (> content 0)
+              (block (int 0 (+left+) ()) (halt))
+            (block))
+          (halt)))))
+
+
+          
+      
+;; (defparameter *ghost-prog-adv*
+;;   '(((+up+ 0)
+;;      (+right+ 1)
+;;      (+down+ 2)
+;;      (+left+ 3))
+
+;;     (square-fit-ret
+;;      square-fit-x
+;;      square-fit-y
+;;      square-fit-value
+
+;;      best-fit
+;;      best-direction
+
+;;      top-fit right-fit down-fit left-fit)
+
+;;     (block
+;;         (goto main)
+;;       square-fit
+;;       (block
+;;           (locals fit)
+;;         (:= fit 0)
+;;         ;; center 
+;;         (block
+;;             (int 7 (square-fit-x square-fit-y) (center))
+;;           (if (= center 0)
+;;               (block 
+;;                   (:= square-fit-value fit)
+;;                 (:= pc square-fit-ret))
+;;             (if (> center 4)
+;;                 (+= fit 1)
+;;               (+= fit center))))
+
+;;         ;; top
+;;         (block
+;;             (int 7 (square-fit-x (- square-fit-y 1)) (center))
+;;           (if (> center 4)
+;;               (+= fit 1)
+;;             (+= fit center)))
+
+;;         ;; top right
+;;         (block
+;;             (int 7 ((+ square-fit-x 1) (- square-fit-y 1)) (center))
+;;           (if (> center 4) (+= fit 1) (+= fit center)))
+
+;;         ;; right
+;;         (block
+;;             (int 7 ((+ square-fit-x 1) square-fit-y) (center))
+;;           (if (> center 4) (+= fit 1) (+= fit center)))
+
+;;         ;; down right
+;;         (block
+;;             (int 7 ((+ square-fit-x 1) (+ square-fit-y 1)) (center))
+;;           (if (> center 4) (+= fit 1) (+= fit center)))
+
+;;         ;; down
+;;         (block
+;;             (int 7 (square-fit-x (+ square-fit-y 1)) (center))
+;;           (if (> center 4) (+= fit 1) (+= fit center)))
+
+;;         ;; down left
+;;         (block
+;;             (int 7 ((- square-fit-x 1) (+ square-fit-y 1)) (center))
+;;           (if (> center 4) (+= fit 1) (+= fit center)))
+
+;;         ;; left
+;;         (block
+;;             (int 7 ((- square-fit-x 1) square-fit-y) (center))
+;;           (if (> center 4) (+= fit 1) (+= fit center)))
+
+;;         ;; top left
+;;         (block
+;;             (int 7 ((- square-fit-x 1) (- square-fit-y 1)) (center))
+;;           (if (> center 4) (+= fit 1) (+= fit center))
+;;           (:= square-fit-value fit)
+;;           (:= pc square-fit-ret)))
+
+;;         main
+;;         (block
+;;             (block
+;;                 (int 3 () (index))
+;;               (int 4 (index) (ghost-x ghost-y)) 
+;;               (:= square-fit-ret (label ret-top))
+;;               (:= square-fit-x ghost-x)
+;;               (:= square-fit-y (+ ghost-y 1))
+;;               (goto square-fit)
+;;               ret-top
+;;               (:= top-fit square-fit-value)
+
+;;               (:= square-fit-ret (label ret-right))
+;;               (:= square-fit-x (+ ghost-x 1))
+;;               (:= square-fit-y ghost-y)
+;;               (goto square-fit)
+;;               ret-right
+;;               (:= right-fit square-fit-value)
+
+;;               (:= square-fit-ret (label ret-down))
+;;               (:= square-fit-x ghost-x)
+;;               (:= square-fit-y (+ ghost-y 1))
+;;               (goto square-fit)
+;;               ret-down
+;;               (:= down-fit square-fit-value)
+
+;;               (:= square-fit-ret (label ret-left))
+;;               (:= square-fit-x (- ghost-x 1))
+;;               (:= square-fit-y ghost-y)
+;;               (goto square-fit)
+;;               ret-left
+;;               (:= left-fit square-fit-value)
+
+;;               ;; choose best
+;;               (if (> top-fit right-fit)
+;;                   (block
+;;                       (:= best-fit top-fit)
+;;                     (:= best-direction +up+))
+;;                 (block
+;;                     (:= best-fit right-fit)
+;;                   (:= best-direction +right+)))
+;;               (if (> best-fit down-fit)
+;;                   (:= best-fit best-fit)
+;;                 (block
+;;                     (:= best-fit down-fit)
+;;                   (:= best-direction +down+)))
+;;               (if (> best-fit left-fit)
+;;                   (:= best-fit best-fit)
+;;                 (block 
+;;                     (:= best-fit left-fit)
+;;                   (:= best-direction +left+)))
+
+;;               (int 0 (best-direction) ())
+;;               (halt))))))
+                
+
+      
+          
+
 (defparameter *ghost-prog1*
  '(((+up+ 0)
     (+right+ 1)
