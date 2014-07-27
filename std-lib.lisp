@@ -23,19 +23,6 @@
        1
      0))
 
-(define-client-macro case (what-expr &rest forms)
-  (let ((what (gensym "what")))
-    (labels ((%gen (forms)
-               (if forms
-                   (let ((form (car forms)))
-                     (if (eq (car form) 'otherwise)
-                         `(progn ,@(cdr form))
-                         `(if (= ,what ,(car form))
-                              (progn ,@(cdr form))
-                              ,(%gen (cdr forms)))))
-                   (error "'case' without 'otherwise' final form:~%  ~A" forms))))
-      `(let ((,what ,what-expr)) ,(%gen forms)))))
-
 (define-client-constant nil 0)
 
 (define-client-macro funcall (func &rest args)
