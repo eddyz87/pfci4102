@@ -189,6 +189,7 @@
      (+right+ 1)
      (+down+ 2)
      (+left+ 3)
+     (+fright-mode+ 1)
      (+lookaheads+ 5)
      (+lm-found+ 20))
 
@@ -197,6 +198,7 @@
      ghost-index
      ghost-x
      ghost-y
+     ghost-vitality
      ghost-direction
      upv
      rightv
@@ -229,7 +231,9 @@
               (:= eval-cell-val 0)
             (if (= eval-cell-x lm-x)
                 (if (= eval-cell-y lm-y)
-                    (+= eval-cell-val +lm-found+)
+                    (if (= ghost-vitality +fright-mode+)
+                        (block (:= eval-cell-val 0) (:= eval-direction-val 0) (:= pc eval-cell-ret))
+                        (+= eval-cell-val +lm-found+))
                   (block))
               (block))
               (int 7 (eval-cell-x eval-cell-y) (content))
@@ -367,6 +371,7 @@
         (:= ghost-y y))
       (block
         (int 6 (ghost-index) (vitality direction))
+        (:= ghost-vitality vitality)
         (:= ghost-direction direction))
         
 
