@@ -21,8 +21,10 @@
 
 (define-client-constant +lambda-man+ 100)
 (define-client-constant +no-move+ 101)
+(define-client-constant +frighten-ghost+ 103)
 
-(define-client-constant +ghost-stay-away-distance+ 3)
+(define-client-constant +frighten-mode-reserve-ticks+ 5)
+(define-client-constant +ghost-stay-away-distance+ 4)
 
 (define-client-macro define-tuple (name &rest fields)
   (labels ((%gen (fields top-fields)
@@ -93,15 +95,19 @@
 ;;         (+fruit+ 1)
          (otherwise 0)))
 
-(defun pill-or-fruit? (val fruit-ticks ticks-to-go)
-  (mcase val
-         (+pill+ 1)
-         (+power-pill+ 1)
-         (+fruit+ (if (> fruit-ticks ticks-to-go)
-                      1
-                      0))
-;;         (+fruit+ 1)
-         (otherwise 0)))
+(defun pill-or-fruit? (val fruit-ticks ticks-to-go ghost-hunter)
+  (if ghost-hunter
+      (if (= val +frighten-ghost+)
+          1
+          0)
+      (mcase val
+             (+pill+ 1)
+             (+power-pill+ 1)
+             (+fruit+ (if (> fruit-ticks ticks-to-go)
+                          1
+                          0))
+             ;;         (+fruit+ 1)
+             (otherwise 0))))
 
 (defun inner-lists-to-bin-tries (lsts acc)
   (if (null lsts)
@@ -177,11 +183,12 @@
   (cons (+ (car c) 1)
         (cdr c)))
 
-(defun wave3 (map front fruit-ticks)
+(defun wave3 (map front fruit-ticks frighten-ticks)
   #-secd(declare (optimize (debug 3) (safety 3)))
   #-secd(format t "wave3 map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
   (let ((longest-path-len 0)
-        (longest-path-coords 0))
+        (longest-path-coords 0)
+        (ghost-hunter (> frighten-ticks (* 137 +frighten-mode-reserve-ticks+))))
     (labels ((%decode-move (prev-coord coord)
                (let ((px (car prev-coord))
                      (py (cdr prev-coord))
@@ -224,7 +231,7 @@
                                        (setq longest-path-len len)
                                        (setq longest-path-coords (tuple coord prev-coord)))
                                      0)
-                                 (if (= 1 (pill-or-fruit? val fruit-ticks (* len 127)))
+                                 (if (= 1 (pill-or-fruit? val fruit-ticks (* len 127) ghost-hunter))
                                      (%restore-path map prev-coord coord)
                                      (labels ((%update-front (front move-func)
                                                 (queue-put (tuple (funcall move-func coord)
@@ -262,26 +269,41 @@
                   #-secd(format t "wave2: dir = ~A c = ~A nc = ~A nv = ~A free? = ~A len = ~A~%"
                                 direction coord next-coord next-value (free? next-value) length1)
                   (if (> length1 0)
-                      (if (= 1 (free? next-value))
-                          (progn
-                            #-secd (format t ">> taking direction, length = ~A~%" length1)
-                            (wave2 map (queue-put (tuple (- length1 1) next-coord direction)
-                                                  front)))
-                          (labels ((%update-front (front direction)
-                                     (let* ((next-coord1 (move-coord coord direction))
-                                            (next-value1 (get-map-value map next-coord1)))
-                                       #-secd (format t "trying direction ~A nc = ~A nv = ~A free? = ~A~%"
-                                                      direction next-coord1 next-value1 (free? next-value1))
-                                       (if (= 1 (free? next-value1))
-                                           (queue-put (tuple (- length1 1) next-coord1 direction)
-                                                      front)
-                                           front))))
-                            #-secd(format t "<< bad direction~%")
-                            (wave2 map
-                                   (%update-front
-                                    (%update-front
-                                     (%update-front
-                                      (%update-front front +up+) +down+) +left+) +right+))))
+                      ;; (if (= 1 (free? next-value))
+                      ;;     (progn
+                      ;;       #-secd (format t ">> taking direction, length = ~A~%" length1)
+                      ;;       (wave2 map (queue-put (tuple (- length1 1) next-coord direction)
+                      ;;                             front))))
+                      (let* ((moves1 (mcase direction
+                                            (+up+      (tuple (tuple +up+    +left+ +right+) +down+))
+                                            (+down+    (tuple (tuple +down+  +left+ +right+) +up+))
+                                            (+left+    (tuple (tuple +left+  +up+   +down+)  +right+))
+                                            (otherwise (tuple (tuple +right+ +down+ +up+)    +left+))
+                                            ))
+                             (moves (car moves1))
+                             (opposite (cdr moves1))
+                             (good-updates-happened 0))
+                        (untuple
+                         (m1 m2 m3) moves
+                         (labels ((%update-front (front direction)
+                                    (let* ((next-coord1 (move-coord coord direction))
+                                           (next-value1 (get-map-value map next-coord1)))
+                                      #-secd (format t "trying direction ~A nc = ~A nv = ~A free? = ~A~%"
+                                                     direction next-coord1 next-value1 (free? next-value1))
+                                      (if (= 1 (free? next-value1))
+                                          (progn
+                                            (setq good-updates-happened 1)
+                                            (queue-put (tuple (- length1 1) next-coord1 direction)
+                                                       front))
+                                          front))))
+                           (let ((front (%update-front
+                                         (%update-front
+                                          (%update-front front m1) m2) m3)))
+                             ;;#-secd(format t "<< bad direction~%")
+                             (wave2 map
+                                    (if (= 1 good-updates-happened)
+                                        front
+                                        (%update-front front opposite)))))))
                       map))))))
 
 (defun mark-way (map lm-coord coord direction)
@@ -300,9 +322,10 @@
                  (let ((g (car ghosts)))
                    ;;#+secd(dbug g)
                    (%mark
-                    (if (= +vitality-standard+ (ghost-vitality g))
-                        (mark-way map lm-coord (ghost-coord g) (ghost-direction g))
-                        map)
+                    (mcase (ghost-vitality g)
+                           (+vitality-standard+ (mark-way map lm-coord (ghost-coord g) (ghost-direction g)))
+                           (+vitality-fright+ (put-map-value map (ghost-coord g) +frighten-ghost+))
+                           (otherwise map))
                     (cdr ghosts))))))
     (%mark map ghosts)))
 
@@ -317,7 +340,8 @@
       ;;(dbug lambda-man-coords)
       (let ((result (cons nil (wave3 map 
                                      (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+) 0) (make-queue))
-                                     (world-state-fruit world-state)))))
+                                     (world-state-fruit world-state)
+                                     (lambda-man-vitality lambda-man)))))
         ;;#+secd(dbug (cons 5555 result))
         result)
       )))
@@ -331,13 +355,13 @@
   (funcall (make-wave-step)
            nil ;; ai state
            (tuple '((0 0 0 0 0)  ;; map
-                    (0 1 1 1 0)
-                    (0 4 0 1 0)
-                    (0 1 1 1 0)
+                    (0 1 2 2 0)
+                    (0 2 0 1 0)
+                    (0 1 2 2 0)
                     (0 0 0 0 0))
-                  (tuple 0 (cons 2 3) +left+) ;; lambda man
-                  (list #| (tuple 0 (cons 1 3) +up+) |# ) ;; ghosts
-                  900 ;; fruit
+                  (tuple 0 (cons 1 3) +left+) ;; lambda man
+                  (list (tuple 0 (cons 3 2) +down+)) ;; ghosts
+                  nil ;; fruit
                   )))
 
 ;; ;; LIGHTING MAN
