@@ -95,19 +95,19 @@
 ;;         (+fruit+ 1)
          (otherwise 0)))
 
-(defun pill-or-fruit? (val fruit-ticks ticks-to-go ghost-hunter)
+(defun pill-or-fruit? (val fruit-ticks ticks-to-go ghost-hunter power-pills-hunter)
   (if ghost-hunter
-      (if (= val +frighten-ghost+)
-          1
-          0)
-      (mcase val
-             (+pill+ 1)
-             (+power-pill+ 1)
-             (+fruit+ (if (> fruit-ticks ticks-to-go)
-                          1
-                          0))
-             ;;         (+fruit+ 1)
-             (otherwise 0))))
+      (if (= val +frighten-ghost+) 1 0)
+      (if power-pills-hunter
+          (if (= val +power-pill+) 1 0)
+          (mcase val
+                 (+pill+ 1)
+                 (+power-pill+ 1)
+                 (+fruit+ (if (> fruit-ticks ticks-to-go)
+                              1
+                              0))
+                 ;;         (+fruit+ 1)
+                 (otherwise 0)))))
 
 (defun inner-lists-to-bin-tries (lsts acc)
   (if (null lsts)
@@ -183,20 +183,24 @@
   (cons (+ (car c) 1)
         (cdr c)))
 
-(defun wave3 (map front fruit-ticks frighten-ticks)
+(defun wave3 (map front fruit-ticks frighten-ticks power-pills-num)
   #-secd(declare (optimize (debug 3) (safety 3)))
   #-secd(format t "wave3 map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
-  (let ((longest-path-len 0)
+  (let ((orig-map map)
+        (longest-path-len 0)
         (longest-path-coords 0)
+        (power-pills-hunter (> power-pills-num 2))
         (ghost-hunter (> frighten-ticks (* 137 +frighten-mode-reserve-ticks+))))
     (labels ((%decode-move (prev-coord coord)
                (let ((px (car prev-coord))
                      (py (cdr prev-coord))
                      (x (car coord))
                      (y (cdr coord)))
-                 (if (= x px)
-                     (if (> y py) +down+ +up+)
-                     (if (> x px) +right+ +left+))))
+                 (tuple
+                  (if (= x px)
+                      (if (> y py) +down+ +up+)
+                      (if (> x px) +right+ +left+))
+                  coord)))
              (%restore-path (map prev-coord coord)
                ;; (format t "restore-path: prev-coord = ~A val = ~A~%" coord (get-map-value map prev-coord))
                (if (= (car (get-map-value map prev-coord))
@@ -216,7 +220,7 @@
                                   (%restore-path map prev-coord coord))
                          (progn
                            #+secd(dbug 8888)
-                           +no-move+)))
+                           (cons +no-move+ (cons 0 0)))))
                    (untuple
                     (step-info front) (queue-get front)
                     (untuple
@@ -231,7 +235,7 @@
                                        (setq longest-path-len len)
                                        (setq longest-path-coords (tuple coord prev-coord)))
                                      0)
-                                 (if (= 1 (pill-or-fruit? val fruit-ticks (* len 127) ghost-hunter))
+                                 (if (= 1 (pill-or-fruit? val fruit-ticks (* len 127) ghost-hunter power-pills-hunter))
                                      (%restore-path map prev-coord coord)
                                      (labels ((%update-front (front move-func)
                                                 (queue-put (tuple (funcall move-func coord)
@@ -245,7 +249,12 @@
                                                  (%update-front front #'up-coord) #'down-coord) #'left-coord) #'right-coord)))))
                                (%wave map front))
                            (%wave map front))))))))
-      (%wave map front))))
+      (untuple (direction next-coord) (%wave map front)
+               (cons (if (= (get-map-value orig-map next-coord)
+                            +power-pill+)
+                         (- power-pills-num 1)
+                         power-pills-num)
+                     direction)))))
 
 (defun move-coord (coord direction)
   #-secd(declare (optimize (debug 3) (safety 3)))
@@ -329,40 +338,62 @@
                     (cdr ghosts))))))
     (%mark map ghosts)))
 
+(defun count-power-pills (orig-map)
+  #+secd (dbug 2222)
+  (labels ((%line (cols cnt)
+             #-secd (format t "cols = ~A~%" cols)
+             (if (null cols)
+                 cnt
+                 (%line (cdr cols)
+                        (if (= (car cols) +power-pill+)
+                            (+ 1 cnt)
+                            cnt))))
+           (%map (lines cnt)
+             (if (null lines)
+                 cnt
+                 (%map (cdr lines) (%line (car lines) cnt)))))
+    (%map orig-map 0)))
+
 (defun make-wave-step ()
-  (lambda (ai-state world-state)
-    #-secd(declare (ignore ai-state))
+  (lambda (power-pills-num world-state)
     (let* ((lambda-man (world-state-lambda-man world-state))
            (lambda-man-coords (lambda-man-coord lambda-man))
            (map (get-trie-for-map (car world-state)))
            (map (mark-ghost-ways map lambda-man-coords (world-state-ghosts world-state))))
       #-secd(format t "final map:~%~{  ~{~3d ~}~%~}~%" (mapcar #'bin-trie-to-list (bin-trie-to-list map)))
       ;;(dbug lambda-man-coords)
-      (let ((result (cons nil (wave3 map 
-                                     (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+) 0) (make-queue))
-                                     (world-state-fruit world-state)
-                                     (lambda-man-vitality lambda-man)))))
+      (let ((result (wave3 map 
+                           (queue-put (tuple lambda-man-coords (cons +lambda-man+ +lambda-man+) 0) (make-queue))
+                           (world-state-fruit world-state)
+                           (lambda-man-vitality lambda-man)
+                           power-pills-num)))
         ;;#+secd(dbug (cons 5555 result))
         result)
       )))
 
 (defun wave-main (init-state ghost-programs)
-  #-secd(declare (ignore init-state ghost-programs))
-  (cons nil (make-wave-step)))
+  #-secd(declare (ignore ghost-programs))
+  #+secd (dbug 3333)
+  (let ((power-pills-num (count-power-pills (car init-state))))
+    #+secd (dbug (cons 4444 power-pills-num))
+    (cons power-pills-num
+          (make-wave-step))))
 
 #-secd
 (defun test-wave ()
-  (funcall (make-wave-step)
-           nil ;; ai state
-           (tuple '((0 0 0 0 0)  ;; map
-                    (0 1 2 2 0)
-                    (0 2 0 1 0)
-                    (0 1 2 2 0)
-                    (0 0 0 0 0))
-                  (tuple 0 (cons 1 3) +left+) ;; lambda man
-                  (list (tuple 0 (cons 3 2) +down+)) ;; ghosts
-                  nil ;; fruit
-                  )))
+  (let ((map '((0 0 0 0 0)  ;; map
+               (0 1 3 2 0)
+               (0 2 0 1 0)
+               (0 1 2 2 0)
+               (0 0 0 0 0))))
+    (funcall (make-wave-step)
+             (count-power-pills map) ;; ai state
+             (tuple
+              map
+              (tuple 0 (cons 1 3) +left+) ;; lambda man
+              (list (tuple 0 (cons 3 2) +down+)) ;; ghosts
+              nil ;; fruit
+              ))))
 
 ;; ;; LIGHTING MAN
 ;; (defun lightning-main (init-state ghost-programs)
