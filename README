@@ -4,3 +4,12 @@ $ curl -O http://beta.quicklisp.org/quicklisp.lisp
 $ sbcl --load quicklisp.lisp
 * (quicklisp-quickstart:install)
 * (ql:quickload "optima")
+
+Image compilation:
+./make-image.sh
+
+Create lambda-man bot and ghost programs:
+./create-programs.sh
+
+Create complete submission package:
+./make-submission-package.sh
